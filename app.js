@@ -1,0 +1,1256 @@
+const { useState, useEffect, useRef, useCallback, useMemo } = React;
+
+// ─── Firebase config ──────────────────────────────────────────────────────────
+// ▶ REEMPLAZA estos valores con los de tu proyecto Firebase
+// (Firebase Console → Project Settings → Your apps → SDK setup → Config)
+const firebaseConfig = {
+  apiKey: "AIzaSyC6LYgKefzh1-PB2YMfsVj7uNFX4IE5uyI",
+  authDomain: "micavapp.firebaseapp.com",
+  projectId: "micavapp",
+  storageBucket: "micavapp.firebasestorage.app",
+  messagingSenderId: "176713824457",
+  appId: "1:176713824457:web:ebc1ae114e7737fcb6b518"
+};
+
+// ─── Firebase SDK (cargado desde CDN en index.html) ───────────────────────────
+const {
+  initializeApp,
+  getApps,
+} = window.firebaseApp || {};
+
+const {
+  getAuth,
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut,
+  updateProfile,
+} = window.firebaseAuth || {};
+
+const {
+  getFirestore,
+  doc,
+  getDoc,
+  setDoc,
+  onSnapshot,
+} = window.firebaseFirestore || {};
+
+// Init Firebase once
+let _app, _auth, _db;
+function getFirebase() {
+  if (!_app) {
+    _app  = (getApps && getApps().length) ? getApps()[0] : initializeApp(FIREBASE_CONFIG);
+    _auth = getAuth(_app);
+    _db   = getFirestore(_app);
+  }
+  return { auth: _auth, db: _db };
+}
+
+// ─── constants ────────────────────────────────────────────────────────────────
+const WINE_TYPES = [
+  { id:"tinto",     label:"Tinto",        color:"#7B1D1D", emoji:"🍷" },
+  { id:"blanco",    label:"Blanco",       color:"#C8A951", emoji:"🥂" },
+  { id:"rose",      label:"Rosado",       color:"#D4657A", emoji:"🌸" },
+  { id:"espumante", label:"Espumante",    color:"#7a9e6e", emoji:"🍾" },
+  { id:"dulce",     label:"Dulce/Postre", color:"#8B4513", emoji:"🍯" },
+];
+
+const CEPAS_POR_TIPO = {
+  tinto:     ["Cabernet Sauvignon","Carménère","Syrah","Merlot","Malbec","Carignan","Pinot Noir","Tempranillo","Cabernet Franc","Nebbiolo","Aglianico","Grenache","Otra"],
+  blanco:    ["Sauvignon Blanc","Chardonnay","Torrontés","Riesling","Viognier","Pinot Grigio","Gewürztraminer","Chenin Blanc","Albariño","Verdejo","Otra"],
+  rose:      ["Malbec Rosado","Pinot Noir Rosado","Syrah Rosado","Garnacha Rosada","Otra"],
+  espumante: ["Chardonnay","Pinot Noir","Pinot Meunier","Riesling","Prosecco (Glera)","Torrontés","Otra"],
+  dulce:     ["Moscatel","Riesling","Gewürztraminer","Pedro Ximénez","Semillon","Otro"],
+};
+
+const MARIDAJES = [
+  { id:"carnes_rojas", label:"Carnes rojas",  emoji:"🥩" },
+  { id:"aves",         label:"Aves",           emoji:"🍗" },
+  { id:"pescados",     label:"Pescados",       emoji:"🐟" },
+  { id:"mariscos",     label:"Mariscos",       emoji:"🦐" },
+  { id:"pastas",       label:"Pastas",         emoji:"🍝" },
+  { id:"quesos",       label:"Quesos",         emoji:"🧀" },
+  { id:"vegetariano",  label:"Vegetariano",    emoji:"🥗" },
+  { id:"embutidos",    label:"Embutidos",      emoji:"🥓" },
+  { id:"postres",      label:"Postres",        emoji:"🍮" },
+  { id:"aperitivo",    label:"Aperitivo",      emoji:"🫒" },
+  { id:"pizzas",       label:"Pizzas",         emoji:"🍕" },
+  { id:"arroz",        label:"Arroz/Risotto",  emoji:"🍚" },
+];
+
+const SHAPES = [
+  { id:"rectangle", label:"Rectangular", icon:"▬" },
+  { id:"L",         label:"En L",        icon:"⌐" },
+  { id:"U",         label:"En U",        icon:"∪" },
+];
+
+// ─── helpers ──────────────────────────────────────────────────────────────────
+function buildGrid(shape, cols, rows) {
+  const g = Array.from({length:rows}, ()=>Array.from({length:cols},()=>[]));
+  if (shape==="L") {
+    const hr=Math.floor(rows/2), hc=Math.floor(cols/2);
+    for(let r=hr;r<rows;r++) for(let c=hc;c<cols;c++) g[r][c]="__disabled__";
+  } else if (shape==="U") {
+    const ms=Math.floor(cols/4), me=cols-ms, tr=Math.floor(rows/3);
+    for(let r=0;r<tr;r++) for(let c=ms;c<me;c++) g[r][c]="__disabled__";
+  }
+  return g;
+}
+
+const today = () => new Date().toISOString().slice(0,10);
+
+// ─── styles ───────────────────────────────────────────────────────────────────
+const FONT = "'Helvetica Neue',Helvetica,Arial,sans-serif";
+const iS = { width:"100%", background:"#0e0500", border:"1px solid #4a2800",
+  borderRadius:6, padding:"8px 12px", color:"#e8d5b0", fontFamily:FONT,
+  fontSize:15, outline:"none", boxSizing:"border-box" };
+const lS = { display:"block", fontSize:11, letterSpacing:2, color:"#9a7040",
+  marginBottom:5, textTransform:"uppercase" };
+const pill = (color, active) => ({
+  background: active ? color : "#1a0a00",
+  border:`1px solid ${active ? color : "#4a2800"}`,
+  borderRadius:20, padding:"5px 11px", color:"#e8d5b0",
+  cursor:"pointer", fontSize:12, fontFamily:FONT, transition:"all 0.18s",
+});
+const modalWrap = { position:"fixed", inset:0, background:"rgba(10,5,0,0.88)",
+  display:"flex", alignItems:"center", justifyContent:"center", zIndex:200,
+  backdropFilter:"blur(7px)", overflowY:"auto" };
+const modalBox = { background:"linear-gradient(160deg,#1a0a00,#2c1400)",
+  border:"1px solid #6b3a1f", borderRadius:16, padding:"28px 36px",
+  width:"min(500px, 96vw)", maxHeight:"92vh", overflowY:"auto",
+  boxShadow:"0 32px 80px #000c", fontFamily:FONT, color:"#e8d5b0",
+  margin:"auto" };
+const btnPrimary = { background:"linear-gradient(135deg,#7B1D1D,#a83232)", border:"none",
+  borderRadius:8, padding:"11px", color:"#fff", cursor:"pointer",
+  fontSize:15, letterSpacing:1, fontFamily:FONT };
+const btnGhost = { background:"transparent", border:"1px solid #4a2800",
+  borderRadius:8, padding:"11px 18px", color:"#9a7040",
+  cursor:"pointer", fontSize:15, fontFamily:FONT };
+
+// ─── StarRating ───────────────────────────────────────────────────────────────
+function StarRating({ value=0, onChange, readOnly=false }) {
+  const [hov, setHov] = useState(0);
+  return (
+    <div style={{display:"flex",gap:4}}>
+      {[1,2,3,4,5].map(n=>(
+        <span key={n}
+          onClick={()=>!readOnly&&onChange(n===value?0:n)}
+          onMouseEnter={()=>!readOnly&&setHov(n)}
+          onMouseLeave={()=>setHov(0)}
+          style={{fontSize:24,cursor:readOnly?"default":"pointer",
+            color:(hov||value)>=n?"#d4a853":"#3a1800",
+            transition:"color 0.12s",userSelect:"none"}}>★</span>
+      ))}
+    </div>
+  );
+}
+
+// ─── TagInput ─────────────────────────────────────────────────────────────────
+function TagInput({ tags=[], onChange }) {
+  const [input, setInput] = useState("");
+  const add = () => {
+    const t = input.trim().toLowerCase();
+    if (t && !tags.includes(t)) onChange([...tags, t]);
+    setInput("");
+  };
+  return (
+    <div>
+      <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:8}}>
+        {tags.map(t=>(
+          <span key={t} style={{background:"#2a1200",border:"1px solid #5a3000",
+            borderRadius:20,padding:"3px 10px",fontSize:12,color:"#c8a880",
+            display:"flex",alignItems:"center",gap:5}}>
+            {t}
+            <span onClick={()=>onChange(tags.filter(x=>x!==t))}
+              style={{cursor:"pointer",color:"#6a4020",fontSize:16,lineHeight:1,padding:"0 2px"}}>×</span>
+          </span>
+        ))}
+      </div>
+      <div style={{display:"flex",gap:8}}>
+        <input value={input} onChange={e=>setInput(e.target.value)}
+          onKeyDown={e=>{if(e.key==="Enter"||e.key===","){e.preventDefault();add();}}}
+          placeholder="Escribe y presiona Enter…"
+          style={{...iS,flex:1,padding:"8px 10px",fontSize:13}}/>
+        <button onClick={add} style={{...iS,width:"auto",padding:"8px 14px",
+          cursor:"pointer",fontSize:16,color:"#d4a853"}}>+</button>
+      </div>
+    </div>
+  );
+}
+
+// ─── AuthScreen ───────────────────────────────────────────────────────────────
+function AuthScreen({ onAuth }) {
+  const [mode,  setMode]  = useState("login"); // "login" | "register"
+  const [name,  setName]  = useState("");
+  const [email, setEmail] = useState("");
+  const [pass,  setPass]  = useState("");
+  const [error, setError] = useState("");
+  const [busy,  setBusy]  = useState(false);
+
+  const submit = async () => {
+    setError(""); setBusy(true);
+    try {
+      const { auth } = getFirebase();
+      if (mode === "register") {
+        const cred = await createUserWithEmailAndPassword(auth, email.trim(), pass);
+        await updateProfile(cred.user, { displayName: name.trim() || email.trim() });
+        onAuth(cred.user);
+      } else {
+        const cred = await signInWithEmailAndPassword(auth, email.trim(), pass);
+        onAuth(cred.user);
+      }
+    } catch(e) {
+      const msgs = {
+        "auth/user-not-found":    "No existe una cuenta con ese email.",
+        "auth/wrong-password":    "Contraseña incorrecta.",
+        "auth/email-already-in-use": "Ese email ya está registrado.",
+        "auth/weak-password":     "La contraseña debe tener al menos 6 caracteres.",
+        "auth/invalid-email":     "Email inválido.",
+        "auth/invalid-credential": "Email o contraseña incorrectos.",
+      };
+      setError(msgs[e.code] || e.message);
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <div style={{minHeight:"100vh",
+      background:"radial-gradient(ellipse at 30% 20%,#1a0800,#0a0400 60%,#000)",
+      display:"flex",alignItems:"center",justifyContent:"center",fontFamily:FONT}}>
+      <div style={{textAlign:"center",color:"#e8d5b0",width:"min(400px,92vw)",padding:24}}>
+        <div style={{fontSize:52,marginBottom:12}}>🍷</div>
+        <h1 style={{fontSize:34,fontWeight:300,letterSpacing:5,color:"#d4a853",margin:"0 0 6px"}}>MI CAVA</h1>
+        <p style={{color:"#6a4020",fontSize:12,letterSpacing:3,marginBottom:28}}>
+          {mode==="login" ? "INICIA SESIÓN" : "CREA TU CUENTA"}
+        </p>
+
+        <div style={{background:"#11050088",border:"1px solid #3a1a00",borderRadius:16,padding:"28px 28px"}}>
+          {mode==="register" && (
+            <div style={{marginBottom:14}}>
+              <label style={lS}>Nombre</label>
+              <input value={name} onChange={e=>setName(e.target.value)} style={iS} placeholder="Tu nombre"/>
+            </div>
+          )}
+          <div style={{marginBottom:14}}>
+            <label style={lS}>Email</label>
+            <input type="email" value={email} onChange={e=>setEmail(e.target.value)}
+              style={iS} placeholder="correo@ejemplo.com"
+              onKeyDown={e=>e.key==="Enter"&&submit()}/>
+          </div>
+          <div style={{marginBottom:error?12:20}}>
+            <label style={lS}>Contraseña</label>
+            <input type="password" value={pass} onChange={e=>setPass(e.target.value)}
+              style={iS} placeholder="••••••••"
+              onKeyDown={e=>e.key==="Enter"&&submit()}/>
+          </div>
+          {error && (
+            <div style={{background:"#3a0a0a",border:"1px solid #7B1D1D",borderRadius:8,
+              padding:"8px 12px",marginBottom:16,fontSize:13,color:"#e08080"}}>
+              {error}
+            </div>
+          )}
+          <button onClick={submit} disabled={busy}
+            style={{...btnPrimary,width:"100%",opacity:busy?0.6:1,
+              padding:"13px",fontSize:15,letterSpacing:1}}>
+            {busy ? "…" : mode==="login" ? "Entrar" : "Crear cuenta"}
+          </button>
+          <button onClick={()=>{setMode(mode==="login"?"register":"login");setError("");}}
+            style={{background:"transparent",border:"none",color:"#7a5030",
+              cursor:"pointer",fontSize:13,fontFamily:FONT,marginTop:14,width:"100%"}}>
+            {mode==="login" ? "¿No tienes cuenta? Regístrate" : "¿Ya tienes cuenta? Inicia sesión"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── WineForm (agregar Y editar) ──────────────────────────────────────────────
+const EMPTY_FORM = {
+  nombre:"", bodega:"", añada:"", tipo:"tinto", pais:"",
+  cepas:[], cepaCustom:"", maridajes:[], notas:"", estrellas:0,
+  fechaCompra:today(), guardaHasta:"", cantidad:1, tags:[], precio:"",
+};
+
+function WineForm({ onSave, onClose, initial=null }) {
+  const isEdit = !!initial;
+  const [form, setForm] = useState(()=>{
+    if (!initial) return {...EMPTY_FORM, fechaCompra:today()};
+    // Si viene de datos importados, reconstruir cepas desde cepa string
+    const cepas = initial.cepas?.length
+      ? initial.cepas
+      : initial.cepa
+        ? initial.cepa.split(" + ").filter(Boolean)
+        : [];
+    return {
+      ...EMPTY_FORM,
+      ...initial,
+      cepas,
+      cepaCustom: initial.cepaCustom || "",
+    };
+  });
+  const set = (k,v) => setForm(f=>({...f,[k]:v}));
+  const valid = form.nombre.trim().length > 0;
+  const cepas = CEPAS_POR_TIPO[form.tipo] || [];
+
+  const handleSave = () => {
+    if (!valid) return;
+    const cepaFinal = [
+      ...form.cepas.filter(c=>c!=="Otra"&&c!=="Otro"),
+      ...(form.cepas.includes("Otra")||form.cepas.includes("Otro")
+        ? (form.cepaCustom?[form.cepaCustom]:[]) : [])
+    ].join(" + ");
+    onSave({...form, cepa: cepaFinal});
+    onClose();
+  };
+
+  return (
+    <div style={modalWrap}>
+      <div style={{...modalBox,width:"min(520px,96vw)"}}>
+        <h2 style={{margin:"0 0 20px",fontSize:20,letterSpacing:2,fontWeight:400,color:"#d4a853"}}>
+          {isEdit ? "Editar Vino" : "Agregar Vino"}
+        </h2>
+
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 12px"}}>
+          {[["nombre","Nombre *"],["bodega","Bodega"],["añada","Añada"],["pais","País / Región"]].map(([k,lbl])=>(
+            <div key={k} style={{marginBottom:12}}>
+              <label style={lS}>{lbl}</label>
+              <input value={form[k]} onChange={e=>set(k,e.target.value)} style={iS}/>
+            </div>
+          ))}
+        </div>
+
+        {/* tipo */}
+        <div style={{marginBottom:12}}>
+          <label style={lS}>Tipo</label>
+          <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>
+            {WINE_TYPES.map(t=>(
+              <button key={t.id} onClick={()=>{set("tipo",t.id);set("cepas",[]);set("cepaCustom","");}}
+                style={pill(t.color,form.tipo===t.id)}>{t.emoji} {t.label}</button>
+            ))}
+          </div>
+        </div>
+
+        {/* cepa */}
+        <div style={{marginBottom:12}}>
+          <label style={lS}>
+            Cepa / Varietal
+            {form.cepas.length>1&&<span style={{color:"#c8a0e8",marginLeft:6,fontSize:10,letterSpacing:1}}>ENSAMBLAJE</span>}
+          </label>
+          <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>
+            {cepas.map(c=>{
+              const active=form.cepas.includes(c);
+              return (
+                <button key={c} onClick={()=>set("cepas",active?form.cepas.filter(x=>x!==c):[...form.cepas,c])}
+                  style={pill("#6b3a6b",active)}>{c}</button>
+              );
+            })}
+          </div>
+          {(form.cepas.includes("Otra")||form.cepas.includes("Otro"))&&(
+            <input value={form.cepaCustom} onChange={e=>set("cepaCustom",e.target.value)}
+              placeholder="Especifica la cepa…" style={{...iS,marginTop:8,fontSize:13}}/>
+          )}
+          {form.cepas.filter(c=>c!=="Otra"&&c!=="Otro").length>1&&(
+            <div style={{marginTop:6,fontSize:11,color:"#c8a0e8"}}>
+              Ensamblaje: {form.cepas.filter(c=>c!=="Otra"&&c!=="Otro").join(" + ")}{form.cepaCustom?" + "+form.cepaCustom:""}
+            </div>
+          )}
+        </div>
+
+        {/* maridaje */}
+        <div style={{marginBottom:12}}>
+          <label style={lS}>Maridaje</label>
+          <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>
+            {MARIDAJES.map(m=>{
+              const active=form.maridajes.includes(m.id);
+              return (
+                <button key={m.id}
+                  onClick={()=>set("maridajes",active?form.maridajes.filter(x=>x!==m.id):[...form.maridajes,m.id])}
+                  style={pill("#2a4a2a",active)}>{m.emoji} {m.label}</button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* fechas */}
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 12px",marginBottom:12}}>
+          <div>
+            <label style={lS}>Fecha de compra</label>
+            <input type="date" value={form.fechaCompra} onChange={e=>set("fechaCompra",e.target.value)}
+              style={{...iS,colorScheme:"dark"}}/>
+          </div>
+          <div>
+            <label style={lS}>Beber antes de</label>
+            <input type="date" value={form.guardaHasta} onChange={e=>set("guardaHasta",e.target.value)}
+              style={{...iS,colorScheme:"dark"}}/>
+          </div>
+        </div>
+
+        {/* estrellas */}
+        <div style={{marginBottom:12}}>
+          <label style={lS}>Puntaje personal</label>
+          <StarRating value={form.estrellas} onChange={v=>set("estrellas",v)}/>
+        </div>
+
+        {/* notas */}
+        <div style={{marginBottom:12}}>
+          <label style={lS}>Notas de cata</label>
+          <textarea value={form.notas} onChange={e=>set("notas",e.target.value)} rows={2}
+            style={{...iS,resize:"vertical"}}/>
+        </div>
+
+        {/* tags */}
+        <div style={{marginBottom:12}}>
+          <label style={lS}>Etiquetas</label>
+          <TagInput tags={form.tags} onChange={v=>set("tags",v)}/>
+        </div>
+
+        {/* precio + cantidad */}
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 16px",marginBottom:20}}>
+          <div>
+            <label style={lS}>Precio de compra</label>
+            <div style={{position:"relative"}}>
+              <span style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",
+                color:"#9a7040",fontSize:13,pointerEvents:"none"}}>$</span>
+              <input type="number" min="0" step="0.01" value={form.precio}
+                onChange={e=>set("precio",e.target.value)} placeholder="0"
+                style={{...iS,paddingLeft:22}}/>
+            </div>
+          </div>
+          <div>
+            <label style={lS}>Cantidad</label>
+            <div style={{display:"flex",alignItems:"center",gap:10,height:38}}>
+              <button onClick={()=>set("cantidad",Math.max(1,form.cantidad-1))}
+                style={{...iS,width:36,padding:"5px",textAlign:"center",cursor:"pointer",fontSize:18}}>−</button>
+              <span style={{color:"#d4a853",fontSize:22,minWidth:24,textAlign:"center"}}>{form.cantidad}</span>
+              <button onClick={()=>set("cantidad",form.cantidad+1)}
+                style={{...iS,width:36,padding:"5px",textAlign:"center",cursor:"pointer",fontSize:18}}>+</button>
+            </div>
+          </div>
+        </div>
+
+        <div style={{display:"flex",gap:12}}>
+          <button onClick={handleSave} disabled={!valid}
+            style={{...btnPrimary,flex:1,opacity:valid?1:0.5,cursor:valid?"pointer":"not-allowed"}}>
+            {isEdit ? "Guardar cambios" : "Agregar a la Cava"}
+          </button>
+          <button onClick={onClose} style={btnGhost}>Cancelar</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── WineCard ─────────────────────────────────────────────────────────────────
+function WineCard({ w, onRetire, onEdit, compact=false }) {
+  const [confirm, setConfirm] = useState(false);
+  const tipo = WINE_TYPES.find(t=>t.id===w.tipo)||WINE_TYPES[0];
+  const now = new Date();
+  const guard = w.guardaHasta ? new Date(w.guardaHasta) : null;
+  const vencida = guard && guard < now;
+  const proxima = guard && !vencida && (guard-now)<1000*60*60*24*180;
+
+  return (
+    <div style={{background:tipo.color+"18",border:`1px solid ${tipo.color}${vencida?"99":"44"}`,
+      borderRadius:10,padding:compact?"10px 14px":"14px 16px",marginBottom:10,
+      boxShadow:vencida?"0 0 8px "+tipo.color+"44":"none"}}>
+      <div style={{display:"flex",gap:10,alignItems:"flex-start"}}>
+        <span style={{fontSize:compact?22:28}}>{tipo.emoji}</span>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontWeight:600,fontSize:compact?15:17,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{w.nombre}</div>
+          {w.bodega&&<div style={{fontSize:13,color:"#d4a853"}}>{w.bodega}</div>}
+          <div style={{display:"flex",gap:7,marginTop:3,flexWrap:"wrap",alignItems:"center"}}>
+            {w.cepa&&<span style={{fontSize:11,background:"#2a0a4a",border:"1px solid #6b2a9a",
+              borderRadius:10,padding:"1px 8px",color:"#c8a0e8"}}>🍇 {w.cepa}</span>}
+            {w.añada&&<span style={{fontSize:11,color:"#9a7040"}}>📅 {w.añada}</span>}
+            {w.pais&&<span style={{fontSize:11,color:"#9a7040"}}>📍 {w.pais}</span>}
+            {w.cantidad>1&&<span style={{fontSize:11,color:"#d4a853",fontWeight:600}}>×{w.cantidad}</span>}
+            {w.estrellas>0&&<span style={{fontSize:11,color:"#d4a853"}}>{"★".repeat(w.estrellas)}{"☆".repeat(5-w.estrellas)}</span>}
+            {w.precio&&Number(w.precio)>0&&(
+              <span style={{fontSize:11,background:"#0a2a0a",border:"1px solid #2a5a2a",
+                borderRadius:10,padding:"1px 8px",color:"#7ab87a"}}>
+                ${Number(w.precio).toLocaleString("es-CL")}
+              </span>
+            )}
+          </div>
+          {w.maridajes&&w.maridajes.length>0&&(
+            <div style={{display:"flex",gap:4,flexWrap:"wrap",marginTop:4}}>
+              {w.maridajes.map(id=>{const m=MARIDAJES.find(x=>x.id===id);return m?<span key={id} title={m.label} style={{fontSize:15}}>{m.emoji}</span>:null;})}
+            </div>
+          )}
+          {(w.guardaHasta||w.fechaCompra)&&(
+            <div style={{display:"flex",gap:10,marginTop:3,flexWrap:"wrap"}}>
+              {w.fechaCompra&&<span style={{fontSize:11,color:"#6a5030"}}>Compra: {w.fechaCompra}</span>}
+              {w.guardaHasta&&(
+                <span style={{fontSize:11,color:vencida?"#e05050":proxima?"#e0a030":"#6a5030",fontWeight:vencida||proxima?600:400}}>
+                  {vencida?"⚠️ Vencida: ":"🕐 Hasta: "}{w.guardaHasta}
+                </span>
+              )}
+            </div>
+          )}
+          {w.tags&&w.tags.length>0&&(
+            <div style={{display:"flex",gap:4,flexWrap:"wrap",marginTop:4}}>
+              {w.tags.map(t=>(
+                <span key={t} style={{background:"#1a1000",border:"1px solid #3a2800",
+                  borderRadius:20,padding:"1px 8px",fontSize:11,color:"#8a6040"}}>{t}</span>
+              ))}
+            </div>
+          )}
+          {w.notas&&!compact&&<div style={{fontSize:12,color:"#c8b07a",fontStyle:"italic",marginTop:5}}>"{w.notas}"</div>}
+        </div>
+      </div>
+
+      {/* actions */}
+      <div style={{display:"flex",gap:8,marginTop:10,flexWrap:"wrap"}}>
+        {onEdit&&(
+          <button onClick={onEdit}
+            style={{background:"transparent",border:"1px solid #4a2800",borderRadius:6,
+              padding:"5px 14px",color:"#c8a060",cursor:"pointer",fontFamily:FONT,fontSize:12}}>
+            ✏️ Editar
+          </button>
+        )}
+        {onRetire&&(confirm?(
+          <div style={{display:"flex",gap:6,flex:1}}>
+            <button onClick={()=>{ onRetire(); setConfirm(false); }}
+              style={{flex:1,background:"#7B1D1D",border:"none",borderRadius:6,padding:"6px",
+                color:"#fff",cursor:"pointer",fontFamily:FONT,fontSize:12}}>Sí, retirar</button>
+            <button onClick={()=>setConfirm(false)}
+              style={{flex:1,background:"transparent",border:"1px solid #4a2800",borderRadius:6,
+                padding:"6px",color:"#9a7040",cursor:"pointer",fontFamily:FONT,fontSize:12}}>Cancelar</button>
+          </div>
+        ):(
+          <button onClick={()=>setConfirm(true)}
+            style={{background:"transparent",border:"1px solid #3a1800",borderRadius:6,
+              padding:"5px 14px",color:"#7a5030",cursor:"pointer",fontFamily:FONT,fontSize:12}}>
+            Retirar
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── CellDetail ───────────────────────────────────────────────────────────────
+function CellDetail({ bottles, cellIndex, onRemoveBottle, onAddMore, onStartMove, onEditBottle, onClose }) {
+  return (
+    <div style={modalWrap}>
+      <div style={{...modalBox,width:"min(500px,96vw)"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
+          <h2 style={{margin:0,fontSize:19,color:"#d4a853",letterSpacing:2,fontWeight:400}}>
+            Celda · {bottles.length} botella{bottles.length!==1?"s":""}
+          </h2>
+          <button onClick={onClose} style={{background:"transparent",border:"none",color:"#6a4020",fontSize:24,cursor:"pointer",padding:"4px 8px"}}>✕</button>
+        </div>
+        {bottles.map((w,idx)=>(
+          <div key={idx}>
+            <WineCard
+              w={w}
+              onRetire={()=>onRemoveBottle(cellIndex,idx)}
+              onEdit={()=>{ onEditBottle(w, cellIndex, idx); onClose(); }}
+            />
+            <button
+              onClick={()=>{ onStartMove(w, cellIndex[0], cellIndex[1], idx); onClose(); }}
+              style={{display:"block",width:"100%",marginTop:-4,marginBottom:10,
+                background:"transparent",border:"1px solid #3a2a60",borderRadius:6,
+                padding:"5px 12px",color:"#9a80c8",cursor:"pointer",
+                fontFamily:FONT,fontSize:12,textAlign:"left"}}>
+              ↕ Mover a otra celda
+            </button>
+          </div>
+        ))}
+        <button onClick={onAddMore}
+          style={{...btnPrimary,width:"100%",marginTop:4,fontSize:14,letterSpacing:1}}>
+          + Agregar otra botella aquí
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── ListView ─────────────────────────────────────────────────────────────────
+function ListView({ grid, onRemoveBottle, onHighlight, onEditBottle, onClose }) {
+  const [sortBy, setSortBy] = useState("nombre");
+  const [filterTipo, setFilterTipo] = useState("");
+  const [filterTag,  setFilterTag]  = useState("");
+  const [q, setQ] = useState("");
+
+  const allBottles = [];
+  grid.forEach((row,r)=>row.forEach((cell,c)=>{
+    if(!Array.isArray(cell)) return;
+    cell.forEach((w,idx)=>allBottles.push({w,r,c,idx}));
+  }));
+
+  const allTags = [...new Set(allBottles.flatMap(({w})=>w.tags||[]))].sort();
+
+  let filtered = allBottles.filter(({w})=>{
+    const hay=[w.nombre,w.bodega,w.cepa,w.pais,w.notas].join(" ").toLowerCase();
+    return (!filterTipo||w.tipo===filterTipo)
+      && (!filterTag||(w.tags||[]).includes(filterTag))
+      && (!q||hay.includes(q.toLowerCase()));
+  });
+
+  filtered.sort((a,b)=>{
+    if(sortBy==="nombre")   return a.w.nombre.localeCompare(b.w.nombre);
+    if(sortBy==="añada")    return (a.w.añada||"9999").localeCompare(b.w.añada||"9999");
+    if(sortBy==="estrellas")return (b.w.estrellas||0)-(a.w.estrellas||0);
+    if(sortBy==="guarda")   return (a.w.guardaHasta||"9999").localeCompare(b.w.guardaHasta||"9999");
+    if(sortBy==="precio")   return (Number(b.w.precio)||0)-(Number(a.w.precio)||0);
+    return 0;
+  });
+
+  const totalValor = allBottles.reduce((s,{w})=>(s+(Number(w.precio)||0)*(Number(w.cantidad)||1)),0);
+
+  return (
+    <div style={{...modalWrap,alignItems:"flex-start",paddingTop:20}}>
+      <div style={{...modalBox,width:"min(620px,96vw)",margin:"20px auto"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+          <div>
+            <h2 style={{margin:"0 0 2px",fontSize:19,color:"#d4a853",letterSpacing:2,fontWeight:400}}>
+              Inventario · {filtered.length} vino{filtered.length!==1?"s":""}
+            </h2>
+            {totalValor>0&&(
+              <div style={{fontSize:12,color:"#7ab87a"}}>
+                Valor estimado: <strong>${totalValor.toLocaleString("es-CL")}</strong>
+              </div>
+            )}
+          </div>
+          <button onClick={onClose} style={{background:"transparent",border:"none",color:"#6a4020",fontSize:24,cursor:"pointer",padding:"4px 8px"}}>✕</button>
+        </div>
+
+        <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:12}}>
+          <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Buscar…"
+            style={{...iS,flex:"1 1 120px",padding:"7px 10px",fontSize:13}}/>
+          <select value={filterTipo} onChange={e=>setFilterTipo(e.target.value)}
+            style={{...iS,width:"auto",padding:"7px 10px",fontSize:13,cursor:"pointer"}}>
+            <option value="">Todos los tipos</option>
+            {WINE_TYPES.map(t=><option key={t.id} value={t.id}>{t.emoji} {t.label}</option>)}
+          </select>
+          {allTags.length>0&&(
+            <select value={filterTag} onChange={e=>setFilterTag(e.target.value)}
+              style={{...iS,width:"auto",padding:"7px 10px",fontSize:13,cursor:"pointer"}}>
+              <option value="">Todos los tags</option>
+              {allTags.map(t=><option key={t} value={t}>{t}</option>)}
+            </select>
+          )}
+        </div>
+
+        <div style={{display:"flex",gap:6,marginBottom:14,flexWrap:"wrap",alignItems:"center"}}>
+          <span style={{fontSize:11,color:"#6a4020",letterSpacing:1}}>ORDENAR:</span>
+          {[["nombre","Nombre"],["añada","Añada"],["estrellas","Estrellas"],["guarda","Guarda"],["precio","Precio"]].map(([k,lbl])=>(
+            <button key={k} onClick={()=>setSortBy(k)}
+              style={{background:sortBy===k?"#2a1200":"transparent",
+                border:`1px solid ${sortBy===k?"#7a4020":"#3a1800"}`,
+                borderRadius:6,padding:"4px 12px",color:sortBy===k?"#d4a853":"#6a4020",
+                cursor:"pointer",fontSize:12,fontFamily:FONT}}>{lbl}</button>
+          ))}
+        </div>
+
+        <div style={{maxHeight:"55vh",overflowY:"auto",paddingRight:4}}>
+          {filtered.length===0&&<p style={{color:"#5a3a20",textAlign:"center",padding:"24px 0"}}>Sin resultados</p>}
+          {filtered.map(({w,r,c,idx},i)=>(
+            <div key={i}>
+              <div style={{fontSize:10,color:"#4a2800",marginBottom:2,letterSpacing:1}}>
+                FILA {r+1} · COL {c+1}
+                <span onClick={()=>{onHighlight(r,c);onClose();}}
+                  style={{color:"#7a5020",cursor:"pointer",marginLeft:8,textDecoration:"underline"}}>
+                  Ver en cava
+                </span>
+              </div>
+              <WineCard w={w} compact
+                onRetire={()=>onRemoveBottle([r,c],idx)}
+                onEdit={()=>{ onEditBottle(w,[r,c],idx); onClose(); }}
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── SearchPanel ──────────────────────────────────────────────────────────────
+function SearchPanel({ grid, onHighlight, onEditBottle, onClose }) {
+  const [q, setQ] = useState("");
+  const ref = useRef();
+  useEffect(()=>{ setTimeout(()=>ref.current?.focus(),100); },[]);
+
+  const query = q.trim().toLowerCase();
+  const results = [];
+  if (query) grid.forEach((row,r)=>row.forEach((cell,c)=>{
+    if(!Array.isArray(cell)) return;
+    cell.forEach((w,idx)=>{
+      const hay=[w.nombre,w.bodega,w.añada,w.pais,w.notas,w.tipo,w.cepa,...(w.tags||[]),...(w.maridajes||[])].join(" ").toLowerCase();
+      if(hay.includes(query)) results.push({r,c,idx,w});
+    });
+  }));
+
+  return (
+    <div style={{...modalWrap,alignItems:"flex-start",paddingTop:40,zIndex:300}}>
+      <div style={{...modalBox,width:"min(480px,96vw)",margin:"20px auto"}}>
+        <div style={{display:"flex",gap:10,marginBottom:18,alignItems:"center"}}>
+          <span style={{fontSize:20}}>🔍</span>
+          <input ref={ref} value={q} onChange={e=>setQ(e.target.value)}
+            placeholder="Nombre, cepa, bodega, tag, maridaje…"
+            style={{...iS,flex:1}}/>
+          <button onClick={onClose} style={{background:"transparent",border:"none",color:"#6a4020",fontSize:24,cursor:"pointer",padding:"4px 8px"}}>✕</button>
+        </div>
+        {!query&&<p style={{color:"#5a3a20",fontSize:14,textAlign:"center",margin:"24px 0"}}>Escribe para buscar</p>}
+        {query&&results.length===0&&<p style={{color:"#5a3a20",fontSize:14,textAlign:"center",margin:"24px 0"}}>Sin resultados para "{q}"</p>}
+        {results.map(({r,c,w,idx},i)=>{
+          const tipo=WINE_TYPES.find(t=>t.id===w.tipo)||WINE_TYPES[0];
+          return (
+            <div key={i} style={{display:"flex",gap:10,alignItems:"center",padding:"10px 12px",
+              borderRadius:10,marginBottom:7,background:tipo.color+"18",
+              border:`1px solid ${tipo.color}33`}}>
+              <div style={{flex:1, cursor:"pointer"}}
+                onClick={()=>{onHighlight(r,c);onClose();}}>
+                <span style={{fontSize:20}}>{tipo.emoji}</span>
+                <div style={{flex:1,display:"inline-block",marginLeft:10}}>
+                  <div style={{fontWeight:600,fontSize:15}}>{w.nombre}</div>
+                  <div style={{fontSize:12,color:"#9a7040"}}>{[w.bodega,w.cepa,w.añada,w.pais].filter(Boolean).join(" · ")}</div>
+                  {w.estrellas>0&&<div style={{fontSize:11,color:"#d4a853"}}>{"★".repeat(w.estrellas)}</div>}
+                </div>
+              </div>
+              <div style={{textAlign:"right"}}>
+                <div style={{fontSize:11,color:"#6a4020",marginBottom:4}}>F{r+1} · C{c+1}</div>
+                <button onClick={()=>{ onEditBottle(w,[r,c],idx); onClose(); }}
+                  style={{background:"transparent",border:"1px solid #4a2800",borderRadius:6,
+                    padding:"3px 10px",color:"#c8a060",cursor:"pointer",fontFamily:FONT,fontSize:11}}>
+                  ✏️ Editar
+                </button>
+              </div>
+            </div>
+          );
+        })}
+        {results.length>0&&<p style={{fontSize:11,color:"#5a3a20",textAlign:"center",marginTop:10}}>
+          {results.length} resultado{results.length!==1?"s":""} · toca para ir a la celda</p>}
+      </div>
+    </div>
+  );
+}
+
+// ─── SetupScreen ──────────────────────────────────────────────────────────────
+function SetupScreen({ onConfirm }) {
+  const [cols,  setCols]  = useState(8);
+  const [rows,  setRows]  = useState(6);
+  const [shape, setShape] = useState("rectangle");
+
+  return (
+    <div style={{minHeight:"100vh",
+      background:"radial-gradient(ellipse at 30% 20%,#1a0800,#0a0400 60%,#000)",
+      display:"flex",alignItems:"center",justifyContent:"center",fontFamily:FONT}}>
+      <div style={{textAlign:"center",color:"#e8d5b0",width:"min(520px,92vw)",padding:24}}>
+        <div style={{fontSize:52,marginBottom:12}}>🍷</div>
+        <h1 style={{fontSize:36,fontWeight:300,letterSpacing:6,color:"#d4a853",margin:"0 0 6px"}}>MI CAVA</h1>
+        <p style={{color:"#7a5030",marginBottom:28,fontSize:13,letterSpacing:3}}>CONFIGURA TU ESPACIO</p>
+        <div style={{background:"#11050088",border:"1px solid #3a1a00",borderRadius:16,padding:"24px 28px"}}>
+          <div style={{marginBottom:22}}>
+            <label style={{...lS,marginBottom:12,display:"block"}}>Forma de la cava</label>
+            <div style={{display:"flex",gap:10,justifyContent:"center"}}>
+              {SHAPES.map(s=>(
+                <button key={s.id} onClick={()=>setShape(s.id)} style={{
+                  background:shape===s.id?"#7B1D1D":"#1a0800",
+                  border:`1px solid ${shape===s.id?"#c04040":"#4a2800"}`,
+                  borderRadius:10,padding:"10px 16px",color:"#e8d5b0",cursor:"pointer",
+                  transition:"all 0.2s",flex:1}}>
+                  <div style={{fontSize:20}}>{s.icon}</div>
+                  <div style={{fontSize:11,marginTop:4,color:"#c8a880",fontFamily:FONT}}>{s.label}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+          {[["Columnas (ancho)",cols,setCols,2,16],["Filas (alto)",rows,setRows,2,12]].map(([lbl,val,setter,mn,mx])=>(
+            <div key={lbl} style={{marginBottom:18}}>
+              <label style={{...lS,marginBottom:8}}>{lbl}: <span style={{color:"#d4a853",fontSize:18}}>{val}</span></label>
+              <input type="range" min={mn} max={mx} value={val} onChange={e=>setter(Number(e.target.value))}
+                style={{width:"100%",accentColor:"#9B2335",height:20}}/>
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"#5a3a20"}}><span>{mn}</span><span>{mx}</span></div>
+            </div>
+          ))}
+          <p style={{color:"#7a5030",fontSize:13,marginBottom:18}}>
+            Capacidad: <strong style={{color:"#d4a853"}}>{cols*rows} celdas</strong>
+          </p>
+          <button onClick={()=>onConfirm({cols,rows,shape,grid:buildGrid(shape,cols,rows)})}
+            style={{...btnPrimary,width:"100%",padding:"14px",fontSize:16,letterSpacing:2,
+              boxShadow:"0 4px 20px #7B1D1D44"}}>
+            CREAR MI CAVA →
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main CavaApp ─────────────────────────────────────────────────────────────
+function CavaApp() {
+  // auth
+  const [user,       setUser]       = useState(undefined); // undefined = loading
+  // cava state (synced from Firestore)
+  const [configured, setConfigured] = useState(false);
+  const [cols,       setCols]       = useState(8);
+  const [rows,       setRows]       = useState(6);
+  const [shape,      setShape]      = useState("rectangle");
+  const [grid,       setGrid]       = useState([]);
+  const [syncing,    setSyncing]    = useState(false);
+  const [saveError,  setSaveError]  = useState("");
+
+  // ui state
+  const [showAddForm,  setShowAddForm]  = useState(false);
+  const [pendingCell,  setPendingCell]  = useState(null);
+  const [detailCell,   setDetailCell]   = useState(null);
+  const [showSearch,   setShowSearch]   = useState(false);
+  const [showList,     setShowList]     = useState(false);
+  const [highlighted,  setHighlighted]  = useState(null);
+  const [hoveredCell,  setHoveredCell]  = useState(null);
+  const [moveMode,     setMoveMode]     = useState(null);
+  const [dragSource,   setDragSource]   = useState(null);
+  const [dragOver,     setDragOver]     = useState(null);
+  const [editTarget,   setEditTarget]   = useState(null); // {bottle, cellIndex, bottleIdx}
+  const touchDragRef = useRef(null);
+  const importRef    = useRef(null);
+  const unsubRef     = useRef(null);
+
+  // ── Auth listener ───────────────────────────────────────────────────────────
+  useEffect(()=>{
+    const { auth } = getFirebase();
+    const unsub = onAuthStateChanged(auth, u=>{ setUser(u||null); });
+    return ()=>unsub();
+  },[]);
+
+  // ── Firestore listener — subscribe when user logs in ─────────────────────────
+  useEffect(()=>{
+    if (unsubRef.current) { unsubRef.current(); unsubRef.current=null; }
+    if (!user) {
+      setConfigured(false); setGrid([]); return;
+    }
+    const { db } = getFirebase();
+    const ref = doc(db, "cavas", user.uid);
+    const unsub = onSnapshot(ref, snap=>{
+      if (snap.exists()) {
+        const d = snap.data();
+        setCols(d.cols); setRows(d.rows); setShape(d.shape);
+        setGrid(d.grid); setConfigured(true);
+      } else {
+        setConfigured(false); setGrid([]);
+      }
+    }, err=>{ console.error("Firestore:", err); });
+    unsubRef.current = unsub;
+    return ()=>unsub();
+  },[user]);
+
+  // ── Save to Firestore ────────────────────────────────────────────────────────
+  const saveToCloud = useCallback(async (state)=>{
+    if (!user) return;
+    setSyncing(true); setSaveError("");
+    try {
+      const { db } = getFirebase();
+      await setDoc(doc(db,"cavas",user.uid), state);
+    } catch(e) {
+      setSaveError("Error al guardar en la nube.");
+      console.error(e);
+    } finally { setSyncing(false); }
+  },[user]);
+
+  const persistGrid = useCallback((newGrid)=>{
+    setGrid(newGrid);
+    saveToCloud({cols,rows,shape,grid:newGrid});
+  },[cols,rows,shape,saveToCloud]);
+
+  // ── Highlight timeout ────────────────────────────────────────────────────────
+  useEffect(()=>{
+    if(!highlighted) return;
+    const t=setTimeout(()=>setHighlighted(null),2500);
+    return()=>clearTimeout(t);
+  },[highlighted]);
+
+  // ── Auto-close detail if cell emptied ────────────────────────────────────────
+  useEffect(()=>{
+    if(!detailCell) return;
+    const [r,c]=detailCell;
+    if(!Array.isArray(grid[r]?.[c])||grid[r][c].length===0) setDetailCell(null);
+  },[grid]);
+
+  // ── Setup ────────────────────────────────────────────────────────────────────
+  const handleSetup = (state)=>{
+    setCols(state.cols); setRows(state.rows); setShape(state.shape);
+    setGrid(state.grid); setConfigured(true);
+    saveToCloud(state);
+  };
+
+  // ── Cell click ───────────────────────────────────────────────────────────────
+  const handleCellClick = (r,c)=>{
+    if(moveMode){
+      const cell=grid[r][c];
+      if(cell==="__disabled__") return;
+      if(moveMode.fromR===r&&moveMode.fromC===c){ setMoveMode(null); return; }
+      handleMoveBottle(r,c); return;
+    }
+    const cell=grid[r][c];
+    if(cell==="__disabled__") return;
+    const bottles=Array.isArray(cell)?cell:[];
+    if(bottles.length===0){ setPendingCell([r,c]); setShowAddForm(true); }
+    else setDetailCell([r,c]);
+  };
+
+  // ── Add wine ─────────────────────────────────────────────────────────────────
+  const handleAddWine = useCallback((w)=>{
+    if(!pendingCell) return;
+    const [r,c]=pendingCell;
+    const newGrid=grid.map(row=>row.map(cell=>Array.isArray(cell)?[...cell]:cell));
+    if(!Array.isArray(newGrid[r][c])) newGrid[r][c]=[];
+    newGrid[r][c]=[...newGrid[r][c],w];
+    persistGrid(newGrid);
+    setPendingCell(null);
+  },[pendingCell,grid,persistGrid]);
+
+  // ── Edit wine ────────────────────────────────────────────────────────────────
+  const handleEditWine = useCallback((updatedBottle)=>{
+    if(!editTarget) return;
+    const {cellIndex:[r,c],bottleIdx} = editTarget;
+    const newGrid=grid.map(row=>row.map(cell=>Array.isArray(cell)?[...cell]:cell));
+    newGrid[r][c]=newGrid[r][c].map((b,i)=>i===bottleIdx?updatedBottle:b);
+    persistGrid(newGrid);
+    setEditTarget(null);
+  },[editTarget,grid,persistGrid]);
+
+  // ── Remove bottle ────────────────────────────────────────────────────────────
+  const handleRemoveBottle = useCallback(([r,c],idx)=>{
+    const newGrid=grid.map(row=>row.map(cell=>Array.isArray(cell)?[...cell]:cell));
+    newGrid[r][c]=newGrid[r][c].filter((_,i)=>i!==idx);
+    persistGrid(newGrid);
+  },[grid,persistGrid]);
+
+  // ── Move bottle ──────────────────────────────────────────────────────────────
+  const handleMoveBottle = useCallback((destR,destC)=>{
+    if(!moveMode) return;
+    const {bottle,fromR,fromC,fromIdx}=moveMode;
+    const newGrid=grid.map(row=>row.map(cell=>Array.isArray(cell)?[...cell]:cell));
+    newGrid[fromR][fromC]=newGrid[fromR][fromC].filter((_,i)=>i!==fromIdx);
+    if(!Array.isArray(newGrid[destR][destC])) newGrid[destR][destC]=[];
+    newGrid[destR][destC]=[...newGrid[destR][destC],bottle];
+    persistGrid(newGrid);
+    setHighlighted([destR,destC]);
+    setMoveMode(null);
+  },[moveMode,grid,persistGrid]);
+
+  // ── Drag & drop ──────────────────────────────────────────────────────────────
+  const handleDragDrop = useCallback((destR,destC)=>{
+    if(!dragSource||dragSource.r===destR&&dragSource.c===destC) return;
+    const newGrid=grid.map(row=>row.map(cell=>Array.isArray(cell)?[...cell]:cell));
+    const src=newGrid[dragSource.r][dragSource.c];
+    if(!Array.isArray(src)||src.length===0) return;
+    if(!Array.isArray(newGrid[destR][destC])) newGrid[destR][destC]=[];
+    newGrid[destR][destC]=[...newGrid[destR][destC],...src];
+    newGrid[dragSource.r][dragSource.c]=[];
+    persistGrid(newGrid);
+    setHighlighted([destR,destC]);
+    setDragSource(null); setDragOver(null);
+  },[dragSource,grid,persistGrid]);
+
+  // Touch drag
+  const handleTouchStartCell=(r,c,isEmpty,e)=>{
+    if(isEmpty||moveMode) return;
+    touchDragRef.current={r,c,moved:false,startX:e.touches[0].clientX,startY:e.touches[0].clientY};
+  };
+  const handleTouchMoveCell=(e)=>{
+    if(!touchDragRef.current) return;
+    const dx=e.touches[0].clientX-touchDragRef.current.startX;
+    const dy=e.touches[0].clientY-touchDragRef.current.startY;
+    if(!touchDragRef.current.moved&&Math.hypot(dx,dy)>8){
+      touchDragRef.current.moved=true;
+      setDragSource({r:touchDragRef.current.r,c:touchDragRef.current.c});
+    }
+    if(touchDragRef.current.moved){
+      e.preventDefault();
+      const el=document.elementFromPoint(e.touches[0].clientX,e.touches[0].clientY);
+      const key=el?.dataset?.cellKey||el?.closest("[data-cell-key]")?.dataset?.cellKey;
+      if(key){const[cr,cc]=key.split("-").map(Number);setDragOver({r:cr,c:cc});}
+      else setDragOver(null);
+    }
+  };
+  const handleTouchEndCell=(e)=>{
+    if(!touchDragRef.current?.moved){touchDragRef.current=null;return;}
+    e.preventDefault();
+    const el=document.elementFromPoint(e.changedTouches[0].clientX,e.changedTouches[0].clientY);
+    const key=el?.dataset?.cellKey||el?.closest("[data-cell-key]")?.dataset?.cellKey;
+    if(key){const[cr,cc]=key.split("-").map(Number);handleDragDrop(cr,cc);}
+    else{setDragSource(null);setDragOver(null);}
+    touchDragRef.current=null;
+  };
+
+  // ── Export / Import ──────────────────────────────────────────────────────────
+  const handleExport=()=>{
+    const data=JSON.stringify({cols,rows,shape,grid},null,2);
+    const blob=new Blob([data],{type:"application/json"});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a");
+    a.href=url; a.download=`mi-cava-${new Date().toISOString().slice(0,10)}.json`;
+    document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);
+  };
+  const handleImport=(e)=>{
+    const file=e.target.files[0]; if(!file) return;
+    const reader=new FileReader();
+    reader.onload=(ev)=>{
+      try{
+        const d=JSON.parse(ev.target.result);
+        if(d.grid&&d.cols&&d.rows&&d.shape){
+          setCols(d.cols);setRows(d.rows);setShape(d.shape);
+          setGrid(d.grid);setConfigured(true);
+          saveToCloud(d);
+        } else alert("Archivo inválido.");
+      }catch{alert("No se pudo leer el archivo.");}
+    };
+    reader.readAsText(file); e.target.value="";
+  };
+
+  // ── Derived ──────────────────────────────────────────────────────────────────
+  const allBottles  = useMemo(()=>grid.flat().filter(Array.isArray).flat(),[grid]);
+  const totalCeldas = useMemo(()=>grid.flat().filter(c=>c!=="__disabled__").length,[grid]);
+  const ocupadas    = useMemo(()=>grid.flat().filter(c=>Array.isArray(c)&&c.length>0).length,[grid]);
+  const totalBotellas = allBottles.length;
+  const totalValor    = allBottles.reduce((s,w)=>(s+(Number(w.precio)||0)*(Number(w.cantidad)||1)),0);
+  const wineStats     = WINE_TYPES.map(t=>({...t,count:allBottles.filter(w=>w.tipo===t.id).length})).filter(t=>t.count>0);
+
+  // ── Loading ──────────────────────────────────────────────────────────────────
+  if (user === undefined) return (
+    <div style={{minHeight:"100vh",background:"#0a0400",display:"flex",alignItems:"center",
+      justifyContent:"center",color:"#d4a853",fontFamily:FONT,fontSize:28,letterSpacing:4}}>
+      🍷
+    </div>
+  );
+
+  // ── Auth ─────────────────────────────────────────────────────────────────────
+  if (!user) return <AuthScreen onAuth={setUser}/>;
+
+  // ── Setup ────────────────────────────────────────────────────────────────────
+  if (!configured) return <SetupScreen onConfirm={handleSetup}/>;
+
+  // ── Main view ─────────────────────────────────────────────────────────────────
+  return (
+    <div style={{minHeight:"100vh",
+      background:"radial-gradient(ellipse at 20% 0%,#1a0800,#080300 70%,#000)",
+      fontFamily:FONT,color:"#e8d5b0",
+      paddingTop:moveMode?"80px":"22px",paddingLeft:16,paddingRight:16,paddingBottom:48,
+      transition:"padding-top 0.2s"}}>
+
+      {/* Move mode banner */}
+      {moveMode&&(
+        <div style={{position:"fixed",top:0,left:0,right:0,zIndex:150,
+          background:"linear-gradient(135deg,#1a0060,#2a0080)",
+          borderBottom:"1px solid #6040c0",padding:"12px 20px",
+          display:"flex",alignItems:"center",justifyContent:"space-between",
+          fontFamily:FONT,boxShadow:"0 4px 20px #00000088"}}>
+          <div>
+            <div style={{fontSize:13,color:"#c8b8f8",fontWeight:600}}>
+              ↕ Moviendo: <span style={{color:"#e8d5b0"}}>{moveMode.bottle.nombre}</span>
+            </div>
+            <div style={{fontSize:11,color:"#8070b0",marginTop:2}}>
+              Toca la celda destino · Toca la celda origen para cancelar
+            </div>
+          </div>
+          <button onClick={()=>setMoveMode(null)}
+            style={{background:"transparent",border:"1px solid #6040c0",borderRadius:8,
+              padding:"6px 14px",color:"#9a80c8",cursor:"pointer",fontFamily:FONT,fontSize:13}}>
+            Cancelar
+          </button>
+        </div>
+      )}
+
+      {/* Header */}
+      <div style={{textAlign:"center",marginBottom:16}}>
+        <div style={{display:"flex",justifyContent:"flex-end",marginBottom:6}}>
+          <div style={{fontSize:12,color:"#5a3a20",display:"flex",alignItems:"center",gap:8}}>
+            {syncing&&<span style={{color:"#7ab87a"}}>↑ guardando…</span>}
+            {saveError&&<span style={{color:"#e05050"}}>{saveError}</span>}
+            <span>👤 {user.displayName||user.email}</span>
+            <button onClick={()=>signOut(getFirebase().auth)}
+              style={{background:"transparent",border:"1px solid #3a1800",borderRadius:6,
+                padding:"3px 10px",color:"#5a3a20",cursor:"pointer",fontFamily:FONT,fontSize:11}}>
+              Salir
+            </button>
+          </div>
+        </div>
+
+        <h1 style={{fontSize:30,fontWeight:300,letterSpacing:5,color:"#d4a853",margin:"0 0 3px"}}>MI CAVA</h1>
+        <p style={{fontSize:11,color:"#6a4020",letterSpacing:2,margin:"0 0 4px"}}>
+          {totalBotellas} botella{totalBotellas!==1?"s":""} · {ocupadas}/{totalCeldas} celdas · {cols}×{rows}
+        </p>
+        {totalValor>0&&(
+          <p style={{fontSize:11,color:"#7ab87a",margin:"0 0 12px"}}>
+            Valor estimado: <strong>${totalValor.toLocaleString("es-CL")}</strong>
+          </p>
+        )}
+        {totalValor===0&&<div style={{marginBottom:12}}/>}
+
+        <input ref={importRef} type="file" accept=".json" onChange={handleImport} style={{display:"none"}}/>
+        <div style={{display:"flex",gap:7,justifyContent:"center",flexWrap:"wrap"}}>
+          {[
+            ["🔍",()=>setShowSearch(true),"#110600","#4a2800","#c8a880"],
+            ["≡",()=>setShowList(true),"#110600","#4a2800","#c8a880"],
+            ["⬇",handleExport,"#0a1a0a","#2a4a2a","#7ab87a"],
+            ["⬆",()=>importRef.current?.click(),"#0a1a0a","#2a4a2a","#7ab87a"],
+            ["⚙",()=>{const ok=window.confirm("¿Reconfigurar la cava? Se perderán todos los vinos.");if(ok){setConfigured(false);setGrid([]);saveToCloud({cols,rows,shape,grid:[]}).then(()=>setConfigured(false));}},
+              "transparent","#3a1800","#5a3a20"],
+          ].map(([lbl,fn,bg,br,col])=>(
+            <button key={lbl} onClick={fn}
+              style={{background:bg,border:`1px solid ${br}`,borderRadius:8,
+                padding:"7px 13px",color:col,cursor:"pointer",fontSize:15,fontFamily:FONT}}>
+              {lbl}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Stats */}
+      {wineStats.length>0&&(
+        <div style={{display:"flex",gap:7,justifyContent:"center",flexWrap:"wrap",marginBottom:14}}>
+          {wineStats.map(t=>(
+            <div key={t.id} style={{background:t.color+"22",border:`1px solid ${t.color}44`,
+              borderRadius:20,padding:"3px 12px",fontSize:11,color:t.color}}>
+              {t.emoji} {t.label} · {t.count}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Grid */}
+      <div style={{display:"flex",justifyContent:"center",marginBottom:14,overflowX:"auto",padding:"4px 0"}}>
+        <div style={{display:"grid",gridTemplateColumns:`repeat(${cols},minmax(32px,46px))`,
+          gap:4,padding:"14px 18px",background:"#0e050088",
+          border:"1px solid #2a1200",borderRadius:14,
+          boxShadow:"inset 0 2px 20px #00000066"}}>
+          {grid.map((row,r)=>row.map((cell,c)=>{
+            const isDisabled=cell==="__disabled__";
+            const bottles=Array.isArray(cell)?cell:[];
+            const isEmpty=bottles.length===0;
+            const isHov=hoveredCell&&hoveredCell[0]===r&&hoveredCell[1]===c;
+            const isHl=highlighted&&highlighted[0]===r&&highlighted[1]===c;
+            const count=bottles.length;
+            const isSource=moveMode&&moveMode.fromR===r&&moveMode.fromC===c;
+            const isDragSrc=dragSource&&dragSource.r===r&&dragSource.c===c;
+            const isDragOver=dragOver&&dragOver.r===r&&dragOver.c===c&&!isDisabled&&!isDragSrc;
+            let bgC=null;
+            if(!isEmpty){
+              const freq={};
+              bottles.forEach(w=>freq[w.tipo]=(freq[w.tipo]||0)+1);
+              const dom=Object.entries(freq).sort((a,b)=>b[1]-a[1])[0][0];
+              bgC=(WINE_TYPES.find(t=>t.id===dom)||WINE_TYPES[0]).color;
+            }
+            const venc=!isEmpty&&bottles.some(w=>w.guardaHasta&&new Date(w.guardaHasta)<new Date());
+            let cellBorder;
+            if(isDisabled)         cellBorder="none";
+            else if(isDragOver)    cellBorder="2px solid #60d0ff";
+            else if(isSource)      cellBorder="2px solid #a080ff";
+            else if(isDragSrc)     cellBorder="2px solid #80a0ff";
+            else if(isHl)          cellBorder="2px solid #FFD700";
+            else if(venc)          cellBorder="1px solid #e0505099";
+            else if(moveMode&&!isDisabled) cellBorder=`1px dashed ${isHov?"#a080ff":"#5040a0"}`;
+            else if(isEmpty)       cellBorder=`1px dashed ${isHov?"#6b3a1f":"#2a1200"}`;
+            else                   cellBorder=`1px solid ${bgC}88`;
+
+            return (
+              <div key={`${r}-${c}`}
+                data-cell-key={`${r}-${c}`}
+                onClick={()=>handleCellClick(r,c)}
+                onMouseEnter={()=>!isDisabled&&setHoveredCell([r,c])}
+                onMouseLeave={()=>setHoveredCell(null)}
+                title={isEmpty?"":bottles.map(w=>w.nombre).join(", ")}
+                draggable={!isEmpty&&!isDisabled&&!moveMode}
+                onDragStart={e=>{e.dataTransfer.effectAllowed="move";setDragSource({r,c});}}
+                onDragOver={e=>{if(isDisabled||isDragSrc)return;e.preventDefault();e.dataTransfer.dropEffect="move";setDragOver({r,c});}}
+                onDragLeave={e=>{if(!e.currentTarget.contains(e.relatedTarget))setDragOver(null);}}
+                onDrop={e=>{e.preventDefault();handleDragDrop(r,c);}}
+                onDragEnd={()=>{setDragSource(null);setDragOver(null);}}
+                onTouchStart={e=>handleTouchStartCell(r,c,isEmpty,e)}
+                onTouchMove={handleTouchMoveCell}
+                onTouchEnd={handleTouchEndCell}
+                style={{width:"100%",aspectRatio:"1/2.4",borderRadius:4,
+                  background:isDisabled?"transparent"
+                    :isDragOver?"#1a2a40":isSource?"#2a1060":isDragSrc?"#1a2060"
+                    :isEmpty?(isHov&&(moveMode||dragSource)?"#1a1040":isHov?"#2a1200":"#160800")
+                    :`linear-gradient(160deg,${bgC}cc,${bgC}77)`,
+                  border:cellBorder,
+                  cursor:isDisabled?"default":(!isEmpty&&!moveMode?"grab":"pointer"),
+                  display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
+                  transition:"all 0.14s",opacity:isDragSrc?0.4:1,
+                  transform:isHov&&!isDisabled&&!isDragSrc?"scale(1.07)":"scale(1)",
+                  boxShadow:isDragOver?"0 0 14px #60d0ff66"
+                    :isSource?"0 0 12px #a080ff66":isHl?"0 0 14px #FFD70099"
+                    :venc?"0 0 8px #e0505055":!isEmpty&&isHov?`0 4px 14px ${bgC}44`:"none",
+                  position:"relative",overflow:"hidden"}}>
+                {!isDisabled&&!isEmpty&&(
+                  <>
+                    <span style={{fontSize:11,lineHeight:1,userSelect:"none"}}>
+                      {(WINE_TYPES.find(t=>t.id===bottles[0].tipo)||WINE_TYPES[0]).emoji}
+                    </span>
+                    {count>1&&<span style={{fontSize:8,color:"#fff",background:"#00000066",
+                      borderRadius:6,padding:"1px 3px",marginTop:1,fontFamily:"monospace"}}>×{count}</span>}
+                    {venc&&<span style={{fontSize:7,color:"#e05050",marginTop:1}}>⚠</span>}
+                    {isSource&&<span style={{fontSize:7,color:"#c0a0ff",marginTop:1}}>↕</span>}
+                  </>
+                )}
+                {!isDisabled&&isEmpty&&(isHov||isDragOver)&&(
+                  <span style={{fontSize:isDragOver?14:13,
+                    color:isDragOver?"#60d0ff":"#6b3a1f",userSelect:"none"}}>
+                    {isDragOver?"⤵":"+"}
+                  </span>
+                )}
+              </div>
+            );
+          }))}
+        </div>
+      </div>
+
+      {/* Legend */}
+      <div style={{textAlign:"center",marginBottom:8}}>
+        <div style={{display:"flex",gap:10,justifyContent:"center",flexWrap:"wrap",fontSize:10,color:"#5a3a20"}}>
+          {WINE_TYPES.map(t=><span key={t.id}>{t.emoji} {t.label}</span>)}
+          <span>· ×N = múltiples · ⚠ = guarda vencida · ↕ = en movimiento</span>
+        </div>
+      </div>
+
+      {/* Modals */}
+      {showAddForm&&(
+        <WineForm onSave={handleAddWine} onClose={()=>{setShowAddForm(false);setPendingCell(null);}}/>
+      )}
+
+      {editTarget&&(
+        <WineForm
+          initial={editTarget.bottle}
+          onSave={handleEditWine}
+          onClose={()=>setEditTarget(null)}
+        />
+      )}
+
+      {detailCell&&Array.isArray(grid[detailCell[0]]?.[detailCell[1]])&&grid[detailCell[0]][detailCell[1]].length>0&&(
+        <CellDetail
+          bottles={grid[detailCell[0]][detailCell[1]]}
+          cellIndex={detailCell}
+          onRemoveBottle={handleRemoveBottle}
+          onAddMore={()=>{setPendingCell(detailCell);setDetailCell(null);setShowAddForm(true);}}
+          onStartMove={(bottle,fromR,fromC,fromIdx)=>{setMoveMode({bottle,fromR,fromC,fromIdx});setDetailCell(null);}}
+          onEditBottle={(bottle,cellIndex,bottleIdx)=>setEditTarget({bottle,cellIndex,bottleIdx})}
+          onClose={()=>setDetailCell(null)}
+        />
+      )}
+
+      {showSearch&&(
+        <SearchPanel
+          grid={grid}
+          onHighlight={(r,c)=>setHighlighted([r,c])}
+          onEditBottle={(bottle,cellIndex,bottleIdx)=>{ setEditTarget({bottle,cellIndex,bottleIdx}); }}
+          onClose={()=>setShowSearch(false)}
+        />
+      )}
+
+      {showList&&(
+        <ListView
+          grid={grid}
+          onRemoveBottle={handleRemoveBottle}
+          onHighlight={(r,c)=>setHighlighted([r,c])}
+          onEditBottle={(bottle,cellIndex,bottleIdx)=>setEditTarget({bottle,cellIndex,bottleIdx})}
+          onClose={()=>setShowList(false)}
+        />
+      )}
+    </div>
+  );
+}
