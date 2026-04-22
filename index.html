@@ -1116,6 +1116,44 @@ function SetupScreen({ onConfirm }) {
   );
 }
 
+// ─── Grid serialization helpers (module-level, no closure issues) ─────────────
+
+// 2D grid → flat Firestore-safe map { "r_c": data }
+function gridToFlat(g) {
+  const cells = {};
+  if (!Array.isArray(g)) return cells;
+  g.forEach((row, r) => {
+    if (!Array.isArray(row)) return;
+    row.forEach((cell, c) => {
+      const key = `${r}_${c}`;
+      if (cell === "__disabled__") {
+        cells[key] = "__disabled__";
+      } else if (Array.isArray(cell) && cell.length > 0) {
+        cells[key] = cell.map(b => {
+          try { return JSON.parse(JSON.stringify(b, (k,v) => v===undefined ? null : v)); }
+          catch { return b; }
+        });
+      }
+      // empty cells omitted — reconstructed as [] by flatToGrid
+    });
+  });
+  return cells;
+}
+
+// Flat Firestore map → 2D grid
+function flatToGrid(cols, rows, cells) {
+  const g = buildGrid(cols, rows);
+  Object.entries(cells || {}).forEach(([key, val]) => {
+    const parts = key.split("_");
+    const r = parseInt(parts[0]), c = parseInt(parts[1]);
+    if (!isNaN(r) && !isNaN(c) && g[r] && g[r][c] !== undefined) {
+      g[r][c] = val === "__disabled__" ? "__disabled__"
+               : Array.isArray(val) ? val : [];
+    }
+  });
+  return g;
+}
+
 // ─── Main CavaApp ─────────────────────────────────────────────────────────────
 function CavaApp() {
   // auth
@@ -1174,44 +1212,6 @@ function CavaApp() {
     unsubRef.current = unsub;
     return ()=>unsub();
   },[user]);
-
-  // ── Save to Firestore ────────────────────────────────────────────────────────
-  // Firestore cannot store arrays with mixed types (objects + strings).
-  // Solution: serialize the 2D grid as a flat map { "r_c": cellData }
-  const gridToFlat = (g) => {
-    const cells = {};
-    if (!Array.isArray(g)) return cells;
-    g.forEach((row, r) => {
-      if (!Array.isArray(row)) return;
-      row.forEach((cell, c) => {
-        const key = `${r}_${c}`;
-        if (cell === "__disabled__") {
-          cells[key] = "__disabled__";
-        } else if (Array.isArray(cell) && cell.length > 0) {
-          cells[key] = cell.map(b => {
-            // Deep-clean: remove undefined, convert to plain object
-            try { return JSON.parse(JSON.stringify(b, (k,v)=>v===undefined?null:v)); }
-            catch { return b; }
-          });
-        }
-        // empty cells omitted (default)
-      });
-    });
-    return cells;
-  };
-
-  // Build a clean grid from a cells map (handles both old and new format)
-  const flatToGrid = (cols, rows, cells) => {
-    const g = buildGrid(cols, rows);
-    Object.entries(cells || {}).forEach(([key, val]) => {
-      const parts = key.split("_");
-      const r = parseInt(parts[0]), c = parseInt(parts[1]);
-      if (!isNaN(r) && !isNaN(c) && g[r] && g[r][c] !== undefined) {
-        g[r][c] = val === "__disabled__" ? "__disabled__" : (Array.isArray(val) ? val : []);
-      }
-    });
-    return g;
-  };
 
   const saveToCloud = useCallback(async (state)=>{
     if (!user) return;
