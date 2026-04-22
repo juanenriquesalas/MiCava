@@ -106,13 +106,12 @@ const { useState, useEffect, useRef, useCallback, useMemo } = React;
 // ▶ REEMPLAZA estos valores con los de tu proyecto Firebase
 // (Firebase Console → Project Settings → Your apps → SDK setup → Config)
 const FIREBASE_CONFIG = {
-  apiKey: "AIzaSyC6LYgKefzh1-PB2YMfsVj7uNFX4IE5uyI",
-  authDomain: "micavapp.firebaseapp.com",
-  databaseURL: "https://micavapp-default-rtdb.firebaseio.com",
-  projectId: "micavapp",
-  storageBucket: "micavapp.firebasestorage.app",
+  apiKey:            "AIzaSyC6LYgKefzh1-PB2YMfsVj7uNFX4IE5uyI",
+  authDomain:        "micavapp.firebaseapp.com",
+  projectId:         "micavapp",
+  storageBucket:     "micavapp.firebasestorage.app",
   messagingSenderId: "176713824457",
-  appId: "1:176713824457:web:ebc1ae114e7737fcb6b518"
+  appId:             "1:176713824457:web:ebc1ae114e7737fcb6b518",
 };
 
 // ─── Firebase SDK (cargado desde CDN en index.html) ───────────────────────────
@@ -1181,10 +1180,19 @@ function CavaApp() {
     setSyncing(true); setSaveError("");
     try {
       const { db } = getFirebase();
-      await setDoc(doc(db,"cavas",user.uid), state);
+      // Sanitize: Firestore rejects undefined values — replace with null
+      const clean = JSON.parse(JSON.stringify(state, (k,v)=>v===undefined?null:v));
+      await setDoc(doc(db,"cavas",user.uid), clean);
     } catch(e) {
-      setSaveError("Error al guardar en la nube.");
-      console.error(e);
+      console.error("Firestore save error:", e.code, e.message);
+      const msgs = {
+        "permission-denied":          "Permiso denegado. Revisa las reglas de Firestore.",
+        "unavailable":                "Sin conexión. Los cambios se guardarán al reconectar.",
+        "resource-exhausted":         "Límite de Firebase alcanzado. Intenta más tarde.",
+        "invalid-argument":           "Datos inválidos. Intenta exportar e importar tu cava.",
+        "unauthenticated":            "Sesión expirada. Vuelve a iniciar sesión.",
+      };
+      setSaveError(msgs[e.code] || `Error: ${e.code || e.message}`);
     } finally { setSyncing(false); }
   },[user]);
 
@@ -1426,8 +1434,14 @@ function CavaApp() {
       <div style={{textAlign:"center",marginBottom:16}}>
         <div style={{display:"flex",justifyContent:"flex-end",marginBottom:6}}>
           <div style={{fontSize:12,color:"#5a3a20",display:"flex",alignItems:"center",gap:8}}>
-            {syncing&&<span style={{color:"#7ab87a"}}>↑ guardando…</span>}
-            {saveError&&<span style={{color:"#e05050"}}>{saveError}</span>}
+            {syncing&&<span style={{color:"#7ab87a",fontSize:11}}>↑ guardando…</span>}
+            {saveError&&(
+              <span style={{color:"#e05050",fontSize:11,cursor:"pointer",textDecoration:"underline"}}
+                onClick={()=>setSaveError("")}
+                title="Toca para cerrar">
+                ⚠ {saveError}
+              </span>
+            )}
             <span>👤 {user.displayName||user.email}</span>
             <button onClick={()=>signOut(getFirebase().auth)}
               style={{background:"transparent",border:"1px solid #3a1800",borderRadius:6,
