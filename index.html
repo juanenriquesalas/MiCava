@@ -1164,8 +1164,18 @@ function CavaApp() {
     const unsub = onSnapshot(ref, snap=>{
       if (snap.exists()) {
         const d = snap.data();
-        setCols(d.cols); setRows(d.rows); setShape(d.shape);
-        setGrid(d.grid); setConfigured(true);
+        setCols(d.cols); setRows(d.rows); setShape(d.shape||"rectangle");
+        // Deserialize: flat cells map → 2D grid
+        const g = buildGrid(d.cols, d.rows);
+        if (d.cells) {
+          Object.entries(d.cells).forEach(([key, val]) => {
+            const [r, c] = key.split("_").map(Number);
+            if (g[r] && g[r][c] !== undefined) {
+              g[r][c] = val === "__disabled__" ? "__disabled__" : (val || []);
+            }
+          });
+        }
+        setGrid(g); setConfigured(true);
       } else {
         setConfigured(false); setGrid([]);
       }
@@ -1175,22 +1185,45 @@ function CavaApp() {
   },[user]);
 
   // ── Save to Firestore ────────────────────────────────────────────────────────
+  // Firestore cannot store arrays with mixed types (objects + strings).
+  // Solution: serialize the 2D grid as a flat map { "r_c": cellData }
+  const gridToFlat = (grid) => {
+    const cells = {};
+    grid.forEach((row, r) => row.forEach((cell, c) => {
+      const key = `${r}_${c}`;
+      if (cell === "__disabled__") {
+        cells[key] = "__disabled__";
+      } else if (Array.isArray(cell) && cell.length > 0) {
+        // Sanitize each bottle: remove undefined values
+        cells[key] = cell.map(b =>
+          JSON.parse(JSON.stringify(b, (k,v) => v === undefined ? null : v))
+        );
+      }
+      // Empty cells ([]) are omitted — they're the default
+    }));
+    return cells;
+  };
+
   const saveToCloud = useCallback(async (state)=>{
     if (!user) return;
     setSyncing(true); setSaveError("");
     try {
       const { db } = getFirebase();
-      // Sanitize: Firestore rejects undefined values — replace with null
-      const clean = JSON.parse(JSON.stringify(state, (k,v)=>v===undefined?null:v));
-      await setDoc(doc(db,"cavas",user.uid), clean);
+      const payload = {
+        cols:  state.cols,
+        rows:  state.rows,
+        shape: state.shape || "rectangle",
+        cells: gridToFlat(state.grid),
+      };
+      await setDoc(doc(db,"cavas",user.uid), payload);
     } catch(e) {
       console.error("Firestore save error:", e.code, e.message);
       const msgs = {
-        "permission-denied":          "Permiso denegado. Revisa las reglas de Firestore.",
-        "unavailable":                "Sin conexión. Los cambios se guardarán al reconectar.",
-        "resource-exhausted":         "Límite de Firebase alcanzado. Intenta más tarde.",
-        "invalid-argument":           "Datos inválidos. Intenta exportar e importar tu cava.",
-        "unauthenticated":            "Sesión expirada. Vuelve a iniciar sesión.",
+        "permission-denied": "Permiso denegado. Revisa las reglas de Firestore.",
+        "unavailable":       "Sin conexión. Los cambios se guardarán al reconectar.",
+        "resource-exhausted":"Límite de Firebase alcanzado. Intenta más tarde.",
+        "invalid-argument":  "Datos inválidos — código: invalid-argument.",
+        "unauthenticated":   "Sesión expirada. Vuelve a iniciar sesión.",
       };
       setSaveError(msgs[e.code] || `Error: ${e.code || e.message}`);
     } finally { setSyncing(false); }
@@ -1346,12 +1379,24 @@ function CavaApp() {
     reader.onload=(ev)=>{
       try{
         const d=JSON.parse(ev.target.result);
-        if(d.grid&&d.cols&&d.rows&&d.shape){
-          setCols(d.cols);setRows(d.rows);setShape(d.shape);
-          setGrid(d.grid);setConfigured(true);
-          saveToCloud(d);
+        if(d.cols&&d.rows&&(d.grid||d.cells)){
+          const cols=d.cols, rows=d.rows, shape=d.shape||"rectangle";
+          // Support both old format (grid array) and new format (cells map)
+          let grid;
+          if(d.grid){
+            grid=d.grid;
+          } else {
+            grid=buildGrid(cols,rows);
+            Object.entries(d.cells||{}).forEach(([key,val])=>{
+              const[r,c]=key.split("_").map(Number);
+              if(grid[r]&&grid[r][c]!==undefined) grid[r][c]=val==="__disabled__"?"__disabled__":(val||[]);
+            });
+          }
+          setCols(cols);setRows(rows);setShape(shape);
+          setGrid(grid);setConfigured(true);
+          saveToCloud({cols,rows,shape,grid});
         } else alert("Archivo inválido.");
-      }catch{alert("No se pudo leer el archivo.");}
+      }catch(err){console.error(err);alert("No se pudo leer el archivo.");}
     };
     reader.readAsText(file); e.target.value="";
   };
