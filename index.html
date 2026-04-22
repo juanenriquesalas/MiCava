@@ -1,3 +1,6 @@
+
+Copiar
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -53,16 +56,16 @@
     <button id="btn-dismiss">✕</button>
   </div>
   <div id="root"></div>
-
+ 
   <!-- React -->
   <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
-
+ 
   <!-- Firebase compat SDK -->
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-
+ 
   <!-- Bridge: expone la API modular que usa app.js via el SDK compat -->
   <script>
     window.firebaseApp = {
@@ -86,32 +89,32 @@
       onSnapshot:   (ref, cb, errCb) => ref.onSnapshot(cb, errCb),
     };
   </script>
-
+ 
   <!-- Babel Standalone -->
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-
+ 
   <!-- App: todo el JSX inline, Babel lo transforma en el navegador -->
   <script type="text/babel">
 const { useState, useEffect, useRef, useCallback, useMemo } = React;
-
+ 
 // ─── Firebase config ──────────────────────────────────────────────────────────
 // ▶ REEMPLAZA estos valores con los de tu proyecto Firebase
 // (Firebase Console → Project Settings → Your apps → SDK setup → Config)
 const FIREBASE_CONFIG = {
-  apiKey: "AIzaSyC6LYgKefzh1-PB2YMfsVj7uNFX4IE5uyI",
-  authDomain: "micavapp.firebaseapp.com",
-  projectId: "micavapp",
-  storageBucket: "micavapp.firebasestorage.app",
-  messagingSenderId: "176713824457",
-  appId: "1:176713824457:web:ebc1ae114e7737fcb6b518"
+  apiKey:            "TU_API_KEY",
+  authDomain:        "TU_PROYECTO.firebaseapp.com",
+  projectId:         "TU_PROYECTO",
+  storageBucket:     "TU_PROYECTO.appspot.com",
+  messagingSenderId: "TU_SENDER_ID",
+  appId:             "TU_APP_ID",
 };
-
+ 
 // ─── Firebase SDK (cargado desde CDN en index.html) ───────────────────────────
 const {
   initializeApp,
   getApps,
 } = window.firebaseApp || {};
-
+ 
 const {
   getAuth,
   onAuthStateChanged,
@@ -121,7 +124,7 @@ const {
   updateProfile,
   sendPasswordResetEmail,
 } = window.firebaseAuth || {};
-
+ 
 const {
   getFirestore,
   doc,
@@ -129,7 +132,7 @@ const {
   setDoc,
   onSnapshot,
 } = window.firebaseFirestore || {};
-
+ 
 // Init Firebase once
 let _app, _auth, _db;
 function getFirebase() {
@@ -140,7 +143,7 @@ function getFirebase() {
   }
   return { auth: _auth, db: _db };
 }
-
+ 
 // ─── constants ────────────────────────────────────────────────────────────────
 const WINE_TYPES = [
   { id:"tinto",     label:"Tinto",        color:"#7B1D1D", emoji:"🍷" },
@@ -149,7 +152,7 @@ const WINE_TYPES = [
   { id:"espumante", label:"Espumante",    color:"#7a9e6e", emoji:"🍾" },
   { id:"dulce",     label:"Dulce/Postre", color:"#8B4513", emoji:"🍯" },
 ];
-
+ 
 const CEPAS_POR_TIPO = {
   tinto:     ["Cabernet Sauvignon","Carménère","Syrah","Merlot","Malbec","Carignan","Pinot Noir","Tempranillo","Cabernet Franc","Nebbiolo","Aglianico","Grenache","Otra"],
   blanco:    ["Sauvignon Blanc","Chardonnay","Torrontés","Riesling","Viognier","Pinot Grigio","Gewürztraminer","Chenin Blanc","Albariño","Verdejo","Otra"],
@@ -157,7 +160,7 @@ const CEPAS_POR_TIPO = {
   espumante: ["Chardonnay","Pinot Noir","Pinot Meunier","Riesling","Prosecco (Glera)","Torrontés","Otra"],
   dulce:     ["Moscatel","Riesling","Gewürztraminer","Pedro Ximénez","Semillon","Otro"],
 };
-
+ 
 const MARIDAJES = [
   { id:"carnes_rojas", label:"Carnes rojas",  emoji:"🥩" },
   { id:"aves",         label:"Aves",           emoji:"🍗" },
@@ -172,28 +175,32 @@ const MARIDAJES = [
   { id:"pizzas",       label:"Pizzas",         emoji:"🍕" },
   { id:"arroz",        label:"Arroz/Risotto",  emoji:"🍚" },
 ];
-
+ 
 const SHAPES = [
-  { id:"rectangle", label:"Rectangular", icon:"▬" },
-  { id:"L",         label:"En L",        icon:"⌐" },
-  { id:"U",         label:"En U",        icon:"∪" },
+  { id:"rectangle", label:"Rectangular", icon:"▬",
+    desc:"Cuadrícula estándar. Bloquea celdas para personalizar la forma." },
+  { id:"honeycomb", label:"Panal de abeja", icon:"⬡",
+    desc:"Celdas hexagonales desplazadas. Imita la disposición real de una cava." },
 ];
-
+ 
 // ─── helpers ──────────────────────────────────────────────────────────────────
-function buildGrid(shape, cols, rows) {
-  const g = Array.from({length:rows}, ()=>Array.from({length:cols},()=>[]));
-  if (shape==="L") {
-    const hr=Math.floor(rows/2), hc=Math.floor(cols/2);
-    for(let r=hr;r<rows;r++) for(let c=hc;c<cols;c++) g[r][c]="__disabled__";
-  } else if (shape==="U") {
-    const ms=Math.floor(cols/4), me=cols-ms, tr=Math.floor(rows/3);
-    for(let r=0;r<tr;r++) for(let c=ms;c<me;c++) g[r][c]="__disabled__";
-  }
-  return g;
+// Crea una grilla vacía (todas las celdas activas).
+// Las celdas deshabilitadas se manejan como "__disabled__" en el array.
+function buildGrid(cols, rows) {
+  return Array.from({length:rows}, ()=>Array.from({length:cols},()=>[]));
 }
-
+ 
+// Toggle disabled state of a cell (used in layout-edit mode)
+function toggleDisabled(grid, r, c) {
+  const next = grid.map(row => row.map(cell =>
+    Array.isArray(cell) ? [...cell] : cell
+  ));
+  next[r][c] = next[r][c] === "__disabled__" ? [] : "__disabled__";
+  return next;
+}
+ 
 const today = () => new Date().toISOString().slice(0,10);
-
+ 
 // ─── styles ───────────────────────────────────────────────────────────────────
 const FONT = "'Helvetica Neue',Helvetica,Arial,sans-serif";
 const iS = { width:"100%", background:"#0e0500", border:"1px solid #4a2800",
@@ -221,7 +228,7 @@ const btnPrimary = { background:"linear-gradient(135deg,#7B1D1D,#a83232)", borde
 const btnGhost = { background:"transparent", border:"1px solid #4a2800",
   borderRadius:8, padding:"11px 18px", color:"#9a7040",
   cursor:"pointer", fontSize:15, fontFamily:FONT };
-
+ 
 // ─── StarRating ───────────────────────────────────────────────────────────────
 function StarRating({ value=0, onChange, readOnly=false }) {
   const [hov, setHov] = useState(0);
@@ -239,7 +246,7 @@ function StarRating({ value=0, onChange, readOnly=false }) {
     </div>
   );
 }
-
+ 
 // ─── TagInput ─────────────────────────────────────────────────────────────────
 function TagInput({ tags=[], onChange }) {
   const [input, setInput] = useState("");
@@ -272,7 +279,7 @@ function TagInput({ tags=[], onChange }) {
     </div>
   );
 }
-
+ 
 // ─── AuthScreen ───────────────────────────────────────────────────────────────
 function AuthScreen({ onAuth }) {
   const [mode,  setMode]  = useState("login"); // "login" | "register" | "reset"
@@ -282,14 +289,14 @@ function AuthScreen({ onAuth }) {
   const [error, setError] = useState("");
   const [info,  setInfo]  = useState("");
   const [busy,  setBusy]  = useState(false);
-
+ 
   const switchMode = (m) => { setMode(m); setError(""); setInfo(""); };
-
+ 
   const submit = async () => {
     setError(""); setInfo(""); setBusy(true);
     try {
       const { auth } = getFirebase();
-
+ 
       if (mode === "reset") {
         if (!email.trim()) { setError("Ingresa tu email."); setBusy(false); return; }
         await sendPasswordResetEmail(auth, email.trim());
@@ -297,7 +304,7 @@ function AuthScreen({ onAuth }) {
         setBusy(false);
         return;
       }
-
+ 
       if (mode === "register") {
         const cred = await createUserWithEmailAndPassword(auth, email.trim(), pass);
         await updateProfile(cred.user, { displayName: name.trim() || email.trim() });
@@ -319,9 +326,9 @@ function AuthScreen({ onAuth }) {
       setError(msgs[e.code] || e.message);
     } finally { setBusy(false); }
   };
-
+ 
   const titles = { login:"INICIA SESIÓN", register:"CREA TU CUENTA", reset:"RECUPERAR CONTRASEÑA" };
-
+ 
   return (
     <div style={{minHeight:"100vh",
       background:"radial-gradient(ellipse at 30% 20%,#1a0800,#0a0400 60%,#000)",
@@ -330,9 +337,9 @@ function AuthScreen({ onAuth }) {
         <div style={{fontSize:52,marginBottom:12}}>🍷</div>
         <h1 style={{fontSize:34,fontWeight:300,letterSpacing:5,color:"#d4a853",margin:"0 0 6px"}}>MI CAVA</h1>
         <p style={{color:"#6a4020",fontSize:12,letterSpacing:3,marginBottom:28}}>{titles[mode]}</p>
-
+ 
         <div style={{background:"#11050088",border:"1px solid #3a1a00",borderRadius:16,padding:"28px 28px"}}>
-
+ 
           {/* Nombre solo en registro */}
           {mode==="register" && (
             <div style={{marginBottom:14}}>
@@ -341,7 +348,7 @@ function AuthScreen({ onAuth }) {
                 style={iS} placeholder="Tu nombre"/>
             </div>
           )}
-
+ 
           {/* Email: siempre visible */}
           <div style={{marginBottom:14}}>
             <label style={lS}>Email</label>
@@ -349,7 +356,7 @@ function AuthScreen({ onAuth }) {
               style={iS} placeholder="correo@ejemplo.com"
               onKeyDown={e=>e.key==="Enter"&&submit()}/>
           </div>
-
+ 
           {/* Contraseña: solo login y registro */}
           {mode!=="reset" && (
             <div style={{marginBottom:error||info?12:8}}>
@@ -359,7 +366,7 @@ function AuthScreen({ onAuth }) {
                 onKeyDown={e=>e.key==="Enter"&&submit()}/>
             </div>
           )}
-
+ 
           {/* Link "Olvidé mi contraseña" — solo en login */}
           {mode==="login" && !error && !info && (
             <div style={{textAlign:"right",marginBottom:16}}>
@@ -370,7 +377,7 @@ function AuthScreen({ onAuth }) {
               </button>
             </div>
           )}
-
+ 
           {/* Mensaje de error */}
           {error && (
             <div style={{background:"#3a0a0a",border:"1px solid #7B1D1D",borderRadius:8,
@@ -378,7 +385,7 @@ function AuthScreen({ onAuth }) {
               {error}
             </div>
           )}
-
+ 
           {/* Mensaje de éxito (reset enviado) */}
           {info && (
             <div style={{background:"#0a2a0a",border:"1px solid #2a5a2a",borderRadius:8,
@@ -386,7 +393,7 @@ function AuthScreen({ onAuth }) {
               ✅ {info}
             </div>
           )}
-
+ 
           {/* Botón principal */}
           {!info && (
             <button onClick={submit} disabled={busy}
@@ -395,7 +402,7 @@ function AuthScreen({ onAuth }) {
               {busy ? "…" : mode==="login" ? "Entrar" : mode==="register" ? "Crear cuenta" : "Enviar enlace"}
             </button>
           )}
-
+ 
           {/* Links secundarios */}
           <div style={{marginTop:14,display:"flex",flexDirection:"column",gap:8}}>
             {mode==="login" && (
@@ -425,14 +432,14 @@ function AuthScreen({ onAuth }) {
     </div>
   );
 }
-
+ 
 // ─── WineForm (agregar Y editar) ──────────────────────────────────────────────
 const EMPTY_FORM = {
   nombre:"", bodega:"", añada:"", tipo:"tinto", pais:"",
   cepas:[], cepaCustom:"", maridajes:[], notas:"", estrellas:0,
   fechaCompra:today(), guardaHasta:"", cantidad:1, tags:[], precio:"",
 };
-
+ 
 function WineForm({ onSave, onClose, initial=null }) {
   const isEdit = !!initial;
   const [form, setForm] = useState(()=>{
@@ -453,7 +460,7 @@ function WineForm({ onSave, onClose, initial=null }) {
   const set = (k,v) => setForm(f=>({...f,[k]:v}));
   const valid = form.nombre.trim().length > 0;
   const cepas = CEPAS_POR_TIPO[form.tipo] || [];
-
+ 
   const handleSave = () => {
     if (!valid) return;
     const cepaFinal = [
@@ -464,14 +471,14 @@ function WineForm({ onSave, onClose, initial=null }) {
     onSave({...form, cepa: cepaFinal});
     onClose();
   };
-
+ 
   return (
     <div style={modalWrap}>
       <div style={{...modalBox,width:"min(520px,96vw)"}}>
         <h2 style={{margin:"0 0 20px",fontSize:20,letterSpacing:2,fontWeight:400,color:"#d4a853"}}>
           {isEdit ? "Editar Vino" : "Agregar Vino"}
         </h2>
-
+ 
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 12px"}}>
           {[["nombre","Nombre *"],["bodega","Bodega"],["añada","Añada"],["pais","País / Región"]].map(([k,lbl])=>(
             <div key={k} style={{marginBottom:12}}>
@@ -480,7 +487,7 @@ function WineForm({ onSave, onClose, initial=null }) {
             </div>
           ))}
         </div>
-
+ 
         {/* tipo */}
         <div style={{marginBottom:12}}>
           <label style={lS}>Tipo</label>
@@ -491,7 +498,7 @@ function WineForm({ onSave, onClose, initial=null }) {
             ))}
           </div>
         </div>
-
+ 
         {/* cepa */}
         <div style={{marginBottom:12}}>
           <label style={lS}>
@@ -517,7 +524,7 @@ function WineForm({ onSave, onClose, initial=null }) {
             </div>
           )}
         </div>
-
+ 
         {/* maridaje */}
         <div style={{marginBottom:12}}>
           <label style={lS}>Maridaje</label>
@@ -532,7 +539,7 @@ function WineForm({ onSave, onClose, initial=null }) {
             })}
           </div>
         </div>
-
+ 
         {/* fechas */}
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 12px",marginBottom:12}}>
           <div>
@@ -546,26 +553,26 @@ function WineForm({ onSave, onClose, initial=null }) {
               style={{...iS,colorScheme:"dark"}}/>
           </div>
         </div>
-
+ 
         {/* estrellas */}
         <div style={{marginBottom:12}}>
           <label style={lS}>Puntaje personal</label>
           <StarRating value={form.estrellas} onChange={v=>set("estrellas",v)}/>
         </div>
-
+ 
         {/* notas */}
         <div style={{marginBottom:12}}>
           <label style={lS}>Notas de cata</label>
           <textarea value={form.notas} onChange={e=>set("notas",e.target.value)} rows={2}
             style={{...iS,resize:"vertical"}}/>
         </div>
-
+ 
         {/* tags */}
         <div style={{marginBottom:12}}>
           <label style={lS}>Etiquetas</label>
           <TagInput tags={form.tags} onChange={v=>set("tags",v)}/>
         </div>
-
+ 
         {/* precio + cantidad */}
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 16px",marginBottom:20}}>
           <div>
@@ -589,7 +596,7 @@ function WineForm({ onSave, onClose, initial=null }) {
             </div>
           </div>
         </div>
-
+ 
         <div style={{display:"flex",gap:12}}>
           <button onClick={handleSave} disabled={!valid}
             style={{...btnPrimary,flex:1,opacity:valid?1:0.5,cursor:valid?"pointer":"not-allowed"}}>
@@ -601,7 +608,7 @@ function WineForm({ onSave, onClose, initial=null }) {
     </div>
   );
 }
-
+ 
 // ─── WineCard ─────────────────────────────────────────────────────────────────
 function WineCard({ w, onRetire, onEdit, compact=false }) {
   const [confirm, setConfirm] = useState(false);
@@ -610,7 +617,7 @@ function WineCard({ w, onRetire, onEdit, compact=false }) {
   const guard = w.guardaHasta ? new Date(w.guardaHasta) : null;
   const vencida = guard && guard < now;
   const proxima = guard && !vencida && (guard-now)<1000*60*60*24*180;
-
+ 
   return (
     <div style={{background:tipo.color+"18",border:`1px solid ${tipo.color}${vencida?"99":"44"}`,
       borderRadius:10,padding:compact?"10px 14px":"14px 16px",marginBottom:10,
@@ -660,7 +667,7 @@ function WineCard({ w, onRetire, onEdit, compact=false }) {
           {w.notas&&!compact&&<div style={{fontSize:12,color:"#c8b07a",fontStyle:"italic",marginTop:5}}>"{w.notas}"</div>}
         </div>
       </div>
-
+ 
       {/* actions */}
       <div style={{display:"flex",gap:8,marginTop:10,flexWrap:"wrap"}}>
         {onEdit&&(
@@ -690,7 +697,7 @@ function WineCard({ w, onRetire, onEdit, compact=false }) {
     </div>
   );
 }
-
+ 
 // ─── CellDetail ───────────────────────────────────────────────────────────────
 function CellDetail({ bottles, cellIndex, onRemoveBottle, onAddMore, onStartMove, onEditBottle, onClose }) {
   return (
@@ -727,29 +734,29 @@ function CellDetail({ bottles, cellIndex, onRemoveBottle, onAddMore, onStartMove
     </div>
   );
 }
-
+ 
 // ─── ListView ─────────────────────────────────────────────────────────────────
 function ListView({ grid, onRemoveBottle, onHighlight, onEditBottle, onClose }) {
   const [sortBy, setSortBy] = useState("nombre");
   const [filterTipo, setFilterTipo] = useState("");
   const [filterTag,  setFilterTag]  = useState("");
   const [q, setQ] = useState("");
-
+ 
   const allBottles = [];
   grid.forEach((row,r)=>row.forEach((cell,c)=>{
     if(!Array.isArray(cell)) return;
     cell.forEach((w,idx)=>allBottles.push({w,r,c,idx}));
   }));
-
+ 
   const allTags = [...new Set(allBottles.flatMap(({w})=>w.tags||[]))].sort();
-
+ 
   let filtered = allBottles.filter(({w})=>{
     const hay=[w.nombre,w.bodega,w.cepa,w.pais,w.notas].join(" ").toLowerCase();
     return (!filterTipo||w.tipo===filterTipo)
       && (!filterTag||(w.tags||[]).includes(filterTag))
       && (!q||hay.includes(q.toLowerCase()));
   });
-
+ 
   filtered.sort((a,b)=>{
     if(sortBy==="nombre")   return a.w.nombre.localeCompare(b.w.nombre);
     if(sortBy==="añada")    return (a.w.añada||"9999").localeCompare(b.w.añada||"9999");
@@ -758,9 +765,9 @@ function ListView({ grid, onRemoveBottle, onHighlight, onEditBottle, onClose }) 
     if(sortBy==="precio")   return (Number(b.w.precio)||0)-(Number(a.w.precio)||0);
     return 0;
   });
-
+ 
   const totalValor = allBottles.reduce((s,{w})=>(s+(Number(w.precio)||0)*(Number(w.cantidad)||1)),0);
-
+ 
   return (
     <div style={{...modalWrap,alignItems:"flex-start",paddingTop:20}}>
       <div style={{...modalBox,width:"min(620px,96vw)",margin:"20px auto"}}>
@@ -777,7 +784,7 @@ function ListView({ grid, onRemoveBottle, onHighlight, onEditBottle, onClose }) 
           </div>
           <button onClick={onClose} style={{background:"transparent",border:"none",color:"#6a4020",fontSize:24,cursor:"pointer",padding:"4px 8px"}}>✕</button>
         </div>
-
+ 
         <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:12}}>
           <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Buscar…"
             style={{...iS,flex:"1 1 120px",padding:"7px 10px",fontSize:13}}/>
@@ -794,7 +801,7 @@ function ListView({ grid, onRemoveBottle, onHighlight, onEditBottle, onClose }) 
             </select>
           )}
         </div>
-
+ 
         <div style={{display:"flex",gap:6,marginBottom:14,flexWrap:"wrap",alignItems:"center"}}>
           <span style={{fontSize:11,color:"#6a4020",letterSpacing:1}}>ORDENAR:</span>
           {[["nombre","Nombre"],["añada","Añada"],["estrellas","Estrellas"],["guarda","Guarda"],["precio","Precio"]].map(([k,lbl])=>(
@@ -805,7 +812,7 @@ function ListView({ grid, onRemoveBottle, onHighlight, onEditBottle, onClose }) 
                 cursor:"pointer",fontSize:12,fontFamily:FONT}}>{lbl}</button>
           ))}
         </div>
-
+ 
         <div style={{maxHeight:"55vh",overflowY:"auto",paddingRight:4}}>
           {filtered.length===0&&<p style={{color:"#5a3a20",textAlign:"center",padding:"24px 0"}}>Sin resultados</p>}
           {filtered.map(({w,r,c,idx},i)=>(
@@ -828,13 +835,13 @@ function ListView({ grid, onRemoveBottle, onHighlight, onEditBottle, onClose }) 
     </div>
   );
 }
-
+ 
 // ─── SearchPanel ──────────────────────────────────────────────────────────────
 function SearchPanel({ grid, onHighlight, onEditBottle, onClose }) {
   const [q, setQ] = useState("");
   const ref = useRef();
   useEffect(()=>{ setTimeout(()=>ref.current?.focus(),100); },[]);
-
+ 
   const query = q.trim().toLowerCase();
   const results = [];
   if (query) grid.forEach((row,r)=>row.forEach((cell,c)=>{
@@ -844,7 +851,7 @@ function SearchPanel({ grid, onHighlight, onEditBottle, onClose }) {
       if(hay.includes(query)) results.push({r,c,idx,w});
     });
   }));
-
+ 
   return (
     <div style={{...modalWrap,alignItems:"flex-start",paddingTop:40,zIndex:300}}>
       <div style={{...modalBox,width:"min(480px,96vw)",margin:"20px auto"}}>
@@ -889,59 +896,163 @@ function SearchPanel({ grid, onHighlight, onEditBottle, onClose }) {
     </div>
   );
 }
-
+ 
 // ─── SetupScreen ──────────────────────────────────────────────────────────────
 function SetupScreen({ onConfirm }) {
-  const [cols,  setCols]  = useState(8);
-  const [rows,  setRows]  = useState(6);
-  const [shape, setShape] = useState("rectangle");
-
+  const [cols,    setCols]    = useState(8);
+  const [rows,    setRows]    = useState(6);
+  const [shape,   setShape]   = useState("rectangle");
+  const [preview, setPreview] = useState(()=>buildGrid(8,6));
+  const [step,    setStep]    = useState(1); // 1=config, 2=diseño
+ 
+  // rebuild preview when dims change (keep disabled pattern as much as possible)
+  const applyDims = (newCols, newRows) => {
+    setCols(newCols); setRows(newRows);
+    setPreview(g => {
+      const next = buildGrid(newCols, newRows);
+      // preserve existing disabled cells that still fit
+      for(let r=0;r<Math.min(newRows,g.length);r++)
+        for(let c=0;c<Math.min(newCols,(g[r]||[]).length);c++)
+          if(g[r][c]==="__disabled__") next[r][c]="__disabled__";
+      return next;
+    });
+  };
+ 
+  const totalActive = preview.flat().filter(c=>c!=="__disabled__").length;
+  const totalBlocked = preview.flat().filter(c=>c==="__disabled__").length;
+ 
+  const cellSize = Math.min(44, Math.floor(320 / cols));
+  const isHoneycomb = shape === "honeycomb";
+ 
   return (
     <div style={{minHeight:"100vh",
       background:"radial-gradient(ellipse at 30% 20%,#1a0800,#0a0400 60%,#000)",
-      display:"flex",alignItems:"center",justifyContent:"center",fontFamily:FONT}}>
-      <div style={{textAlign:"center",color:"#e8d5b0",width:"min(520px,92vw)",padding:24}}>
-        <div style={{fontSize:52,marginBottom:12}}>🍷</div>
-        <h1 style={{fontSize:36,fontWeight:300,letterSpacing:6,color:"#d4a853",margin:"0 0 6px"}}>MI CAVA</h1>
-        <p style={{color:"#7a5030",marginBottom:28,fontSize:13,letterSpacing:3}}>CONFIGURA TU ESPACIO</p>
-        <div style={{background:"#11050088",border:"1px solid #3a1a00",borderRadius:16,padding:"24px 28px"}}>
-          <div style={{marginBottom:22}}>
-            <label style={{...lS,marginBottom:12,display:"block"}}>Forma de la cava</label>
-            <div style={{display:"flex",gap:10,justifyContent:"center"}}>
-              {SHAPES.map(s=>(
-                <button key={s.id} onClick={()=>setShape(s.id)} style={{
-                  background:shape===s.id?"#7B1D1D":"#1a0800",
-                  border:`1px solid ${shape===s.id?"#c04040":"#4a2800"}`,
-                  borderRadius:10,padding:"10px 16px",color:"#e8d5b0",cursor:"pointer",
-                  transition:"all 0.2s",flex:1}}>
-                  <div style={{fontSize:20}}>{s.icon}</div>
-                  <div style={{fontSize:11,marginTop:4,color:"#c8a880",fontFamily:FONT}}>{s.label}</div>
-                </button>
-              ))}
+      display:"flex",alignItems:"center",justifyContent:"center",fontFamily:FONT,
+      padding:"20px 16px"}}>
+      <div style={{textAlign:"center",color:"#e8d5b0",width:"min(560px,100%)",}}>
+        <div style={{fontSize:48,marginBottom:10}}>🍷</div>
+        <h1 style={{fontSize:32,fontWeight:300,letterSpacing:5,color:"#d4a853",margin:"0 0 4px"}}>MI CAVA</h1>
+        <p style={{color:"#7a5030",marginBottom:24,fontSize:12,letterSpacing:3}}>
+          {step===1 ? "PASO 1 · DIMENSIONES Y ESTILO" : "PASO 2 · DISEÑA TU CAVA"}
+        </p>
+ 
+        <div style={{background:"#11050088",border:"1px solid #3a1a00",borderRadius:16,padding:"22px 24px"}}>
+ 
+          {step===1 && (<>
+            {/* Shape selector */}
+            <div style={{marginBottom:20}}>
+              <label style={{...lS,marginBottom:10,display:"block"}}>Estilo de celda</label>
+              <div style={{display:"flex",gap:10}}>
+                {SHAPES.map(s=>(
+                  <button key={s.id} onClick={()=>setShape(s.id)} style={{
+                    background:shape===s.id?"#2a0a00":"#1a0800",
+                    border:`1px solid ${shape===s.id?"#c04040":"#4a2800"}`,
+                    borderRadius:10,padding:"12px 14px",color:"#e8d5b0",cursor:"pointer",
+                    transition:"all 0.2s",flex:1,textAlign:"left"}}>
+                    <div style={{fontSize:22,marginBottom:4}}>{s.icon}</div>
+                    <div style={{fontSize:13,fontWeight:600,color:shape===s.id?"#d4a853":"#c8a880"}}>{s.label}</div>
+                    <div style={{fontSize:11,color:"#6a4020",marginTop:3,lineHeight:1.4}}>{s.desc}</div>
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
-          {[["Columnas (ancho)",cols,setCols,2,16],["Filas (alto)",rows,setRows,2,12]].map(([lbl,val,setter,mn,mx])=>(
-            <div key={lbl} style={{marginBottom:18}}>
-              <label style={{...lS,marginBottom:8}}>{lbl}: <span style={{color:"#d4a853",fontSize:18}}>{val}</span></label>
-              <input type="range" min={mn} max={mx} value={val} onChange={e=>setter(Number(e.target.value))}
-                style={{width:"100%",accentColor:"#9B2335",height:20}}/>
-              <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"#5a3a20"}}><span>{mn}</span><span>{mx}</span></div>
+ 
+            {/* Sliders */}
+            {[["Columnas (ancho)",cols,v=>applyDims(v,rows),2,16],
+              ["Filas (alto)",rows,v=>applyDims(cols,v),2,12]].map(([lbl,val,setter,mn,mx])=>(
+              <div key={lbl} style={{marginBottom:16}}>
+                <label style={{...lS,marginBottom:7}}>{lbl}: <span style={{color:"#d4a853",fontSize:18}}>{val}</span></label>
+                <input type="range" min={mn} max={mx} value={val}
+                  onChange={e=>setter(Number(e.target.value))}
+                  style={{width:"100%",accentColor:"#9B2335",height:20}}/>
+                <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"#5a3a20"}}><span>{mn}</span><span>{mx}</span></div>
+              </div>
+            ))}
+ 
+            <p style={{color:"#7a5030",fontSize:13,marginBottom:20}}>
+              {cols}×{rows} = <strong style={{color:"#d4a853"}}>{cols*rows} celdas totales</strong>
+            </p>
+ 
+            <button onClick={()=>setStep(2)}
+              style={{...btnPrimary,width:"100%",padding:"13px",fontSize:15,letterSpacing:1,
+                boxShadow:"0 4px 20px #7B1D1D44"}}>
+              Siguiente: diseñar forma →
+            </button>
+          </>)}
+ 
+          {step===2 && (<>
+            <p style={{fontSize:12,color:"#9a7040",marginBottom:14,lineHeight:1.6}}>
+              Toca las celdas para <strong style={{color:"#e05050"}}>bloquearlas</strong> (oscuro = sin botella).
+              Usa esto para dar la forma exacta a tu cava.
+            </p>
+ 
+            {/* Interactive grid preview */}
+            <div style={{overflowX:"auto",marginBottom:12}}>
+              <div style={{
+                display:"inline-grid",
+                gridTemplateColumns:`repeat(${cols},${cellSize}px)`,
+                gap:isHoneycomb?3:4,
+                padding:"12px 16px",
+                background:"#0e050088",border:"1px solid #2a1200",borderRadius:12,
+              }}>
+                {preview.map((row,r)=>row.map((cell,c)=>{
+                  const isOff = cell==="__disabled__";
+                  const offset = isHoneycomb && r%2===1 ? cellSize/2+1.5 : 0;
+                  return (
+                    <div key={`${r}-${c}`}
+                      onClick={()=>setPreview(g=>toggleDisabled(g,r,c))}
+                      style={{
+                        width:cellSize,
+                        height:isHoneycomb?Math.round(cellSize*1.15):Math.round(cellSize*2.2),
+                        borderRadius:isHoneycomb?6:4,
+                        marginLeft: c===0&&isHoneycomb ? offset : 0,
+                        background:isOff?"#0a0200":"#2a1200",
+                        border:`1px solid ${isOff?"#1a0800":"#5a3010"}`,
+                        cursor:"pointer",
+                        transition:"all 0.12s",
+                        display:"flex",alignItems:"center",justifyContent:"center",
+                        opacity:isOff?0.3:1,
+                        boxShadow:isOff?"none":"inset 0 1px 0 #ffffff0a",
+                      }}>
+                      {!isOff&&<span style={{fontSize:9,color:"#4a2800",userSelect:"none"}}>○</span>}
+                      {isOff&&<span style={{fontSize:9,color:"#2a1000",userSelect:"none"}}>✕</span>}
+                    </div>
+                  );
+                }))}
+              </div>
             </div>
-          ))}
-          <p style={{color:"#7a5030",fontSize:13,marginBottom:18}}>
-            Capacidad: <strong style={{color:"#d4a853"}}>{cols*rows} celdas</strong>
-          </p>
-          <button onClick={()=>onConfirm({cols,rows,shape,grid:buildGrid(shape,cols,rows)})}
-            style={{...btnPrimary,width:"100%",padding:"14px",fontSize:16,letterSpacing:2,
-              boxShadow:"0 4px 20px #7B1D1D44"}}>
-            CREAR MI CAVA →
-          </button>
+ 
+            <div style={{display:"flex",gap:16,justifyContent:"center",marginBottom:16,fontSize:12,color:"#6a4020"}}>
+              <span>🟫 {totalActive} activas</span>
+              <span>⬛ {totalBlocked} bloqueadas</span>
+            </div>
+ 
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={()=>setStep(1)}
+                style={{...btnGhost,flex:"0 0 auto",padding:"11px 16px",fontSize:14}}>
+                ← Atrás
+              </button>
+              <button
+                onClick={()=>setPreview(buildGrid(cols,rows))}
+                style={{background:"transparent",border:"1px solid #3a1800",borderRadius:8,
+                  padding:"11px",color:"#5a3020",cursor:"pointer",fontSize:13,fontFamily:FONT,flex:"0 0 auto"}}>
+                Limpiar
+              </button>
+              <button
+                onClick={()=>onConfirm({cols,rows,shape,grid:preview})}
+                disabled={totalActive===0}
+                style={{...btnPrimary,flex:1,padding:"11px",fontSize:14,letterSpacing:1,
+                  opacity:totalActive===0?0.4:1,boxShadow:"0 4px 20px #7B1D1D44"}}>
+                Crear mi cava ({totalActive} celdas) →
+              </button>
+            </div>
+          </>)}
         </div>
       </div>
     </div>
   );
 }
-
+ 
 // ─── Main CavaApp ─────────────────────────────────────────────────────────────
 function CavaApp() {
   // auth
@@ -954,7 +1065,7 @@ function CavaApp() {
   const [grid,       setGrid]       = useState([]);
   const [syncing,    setSyncing]    = useState(false);
   const [saveError,  setSaveError]  = useState("");
-
+ 
   // ui state
   const [showAddForm,  setShowAddForm]  = useState(false);
   const [pendingCell,  setPendingCell]  = useState(null);
@@ -967,17 +1078,18 @@ function CavaApp() {
   const [dragSource,   setDragSource]   = useState(null);
   const [dragOver,     setDragOver]     = useState(null);
   const [editTarget,   setEditTarget]   = useState(null); // {bottle, cellIndex, bottleIdx}
+  const [layoutEdit,   setLayoutEdit]   = useState(false); // toggle-cell-block mode
   const touchDragRef = useRef(null);
   const importRef    = useRef(null);
   const unsubRef     = useRef(null);
-
+ 
   // ── Auth listener ───────────────────────────────────────────────────────────
   useEffect(()=>{
     const { auth } = getFirebase();
     const unsub = onAuthStateChanged(auth, u=>{ setUser(u||null); });
     return ()=>unsub();
   },[]);
-
+ 
   // ── Firestore listener — subscribe when user logs in ─────────────────────────
   useEffect(()=>{
     if (unsubRef.current) { unsubRef.current(); unsubRef.current=null; }
@@ -998,7 +1110,7 @@ function CavaApp() {
     unsubRef.current = unsub;
     return ()=>unsub();
   },[user]);
-
+ 
   // ── Save to Firestore ────────────────────────────────────────────────────────
   const saveToCloud = useCallback(async (state)=>{
     if (!user) return;
@@ -1011,35 +1123,43 @@ function CavaApp() {
       console.error(e);
     } finally { setSyncing(false); }
   },[user]);
-
+ 
   const persistGrid = useCallback((newGrid)=>{
     setGrid(newGrid);
     saveToCloud({cols,rows,shape,grid:newGrid});
   },[cols,rows,shape,saveToCloud]);
-
+ 
   // ── Highlight timeout ────────────────────────────────────────────────────────
   useEffect(()=>{
     if(!highlighted) return;
     const t=setTimeout(()=>setHighlighted(null),2500);
     return()=>clearTimeout(t);
   },[highlighted]);
-
+ 
   // ── Auto-close detail if cell emptied ────────────────────────────────────────
   useEffect(()=>{
     if(!detailCell) return;
     const [r,c]=detailCell;
     if(!Array.isArray(grid[r]?.[c])||grid[r][c].length===0) setDetailCell(null);
   },[grid]);
-
+ 
   // ── Setup ────────────────────────────────────────────────────────────────────
   const handleSetup = (state)=>{
     setCols(state.cols); setRows(state.rows); setShape(state.shape);
     setGrid(state.grid); setConfigured(true);
     saveToCloud(state);
   };
-
+ 
   // ── Cell click ───────────────────────────────────────────────────────────────
   const handleCellClick = (r,c)=>{
+    // Layout edit: toggle cell disabled
+    if (layoutEdit) {
+      const cell = grid[r][c];
+      // Don't allow blocking a cell that has bottles
+      if (Array.isArray(cell) && cell.length > 0) return;
+      persistGrid(toggleDisabled(grid, r, c));
+      return;
+    }
     if(moveMode){
       const cell=grid[r][c];
       if(cell==="__disabled__") return;
@@ -1052,7 +1172,7 @@ function CavaApp() {
     if(bottles.length===0){ setPendingCell([r,c]); setShowAddForm(true); }
     else setDetailCell([r,c]);
   };
-
+ 
   // ── Add wine ─────────────────────────────────────────────────────────────────
   const handleAddWine = useCallback((w)=>{
     if(!pendingCell) return;
@@ -1063,7 +1183,7 @@ function CavaApp() {
     persistGrid(newGrid);
     setPendingCell(null);
   },[pendingCell,grid,persistGrid]);
-
+ 
   // ── Edit wine ────────────────────────────────────────────────────────────────
   const handleEditWine = useCallback((updatedBottle)=>{
     if(!editTarget) return;
@@ -1073,14 +1193,14 @@ function CavaApp() {
     persistGrid(newGrid);
     setEditTarget(null);
   },[editTarget,grid,persistGrid]);
-
+ 
   // ── Remove bottle ────────────────────────────────────────────────────────────
   const handleRemoveBottle = useCallback(([r,c],idx)=>{
     const newGrid=grid.map(row=>row.map(cell=>Array.isArray(cell)?[...cell]:cell));
     newGrid[r][c]=newGrid[r][c].filter((_,i)=>i!==idx);
     persistGrid(newGrid);
   },[grid,persistGrid]);
-
+ 
   // ── Move bottle ──────────────────────────────────────────────────────────────
   const handleMoveBottle = useCallback((destR,destC)=>{
     if(!moveMode) return;
@@ -1093,7 +1213,7 @@ function CavaApp() {
     setHighlighted([destR,destC]);
     setMoveMode(null);
   },[moveMode,grid,persistGrid]);
-
+ 
   // ── Drag & drop ──────────────────────────────────────────────────────────────
   const handleDragDrop = useCallback((destR,destC)=>{
     if(!dragSource||dragSource.r===destR&&dragSource.c===destC) return;
@@ -1107,7 +1227,7 @@ function CavaApp() {
     setHighlighted([destR,destC]);
     setDragSource(null); setDragOver(null);
   },[dragSource,grid,persistGrid]);
-
+ 
   // Touch drag
   const handleTouchStartCell=(r,c,isEmpty,e)=>{
     if(isEmpty||moveMode) return;
@@ -1138,7 +1258,7 @@ function CavaApp() {
     else{setDragSource(null);setDragOver(null);}
     touchDragRef.current=null;
   };
-
+ 
   // ── Export / Import ──────────────────────────────────────────────────────────
   const handleExport=()=>{
     const data=JSON.stringify({cols,rows,shape,grid},null,2);
@@ -1163,7 +1283,7 @@ function CavaApp() {
     };
     reader.readAsText(file); e.target.value="";
   };
-
+ 
   // ── Derived ──────────────────────────────────────────────────────────────────
   const allBottles  = useMemo(()=>grid.flat().filter(Array.isArray).flat(),[grid]);
   const totalCeldas = useMemo(()=>grid.flat().filter(c=>c!=="__disabled__").length,[grid]);
@@ -1171,7 +1291,7 @@ function CavaApp() {
   const totalBotellas = allBottles.length;
   const totalValor    = allBottles.reduce((s,w)=>(s+(Number(w.precio)||0)*(Number(w.cantidad)||1)),0);
   const wineStats     = WINE_TYPES.map(t=>({...t,count:allBottles.filter(w=>w.tipo===t.id).length})).filter(t=>t.count>0);
-
+ 
   // ── Loading ──────────────────────────────────────────────────────────────────
   if (user === undefined) return (
     <div style={{minHeight:"100vh",background:"#0a0400",display:"flex",alignItems:"center",
@@ -1179,21 +1299,42 @@ function CavaApp() {
       🍷
     </div>
   );
-
+ 
   // ── Auth ─────────────────────────────────────────────────────────────────────
   if (!user) return <AuthScreen onAuth={setUser}/>;
-
+ 
   // ── Setup ────────────────────────────────────────────────────────────────────
   if (!configured) return <SetupScreen onConfirm={handleSetup}/>;
-
+ 
   // ── Main view ─────────────────────────────────────────────────────────────────
   return (
     <div style={{minHeight:"100vh",
       background:"radial-gradient(ellipse at 20% 0%,#1a0800,#080300 70%,#000)",
       fontFamily:FONT,color:"#e8d5b0",
-      paddingTop:moveMode?"80px":"22px",paddingLeft:16,paddingRight:16,paddingBottom:48,
+      paddingTop:(layoutEdit||moveMode)?"80px":"22px",paddingLeft:16,paddingRight:16,paddingBottom:48,
       transition:"padding-top 0.2s"}}>
-
+ 
+      {/* Layout edit banner */}
+      {layoutEdit&&(
+        <div style={{position:"fixed",top:0,left:0,right:0,zIndex:150,
+          background:"linear-gradient(135deg,#1a0050,#2a0070)",
+          borderBottom:"1px solid #6040b0",padding:"10px 20px",
+          display:"flex",alignItems:"center",justifyContent:"space-between",
+          fontFamily:FONT,boxShadow:"0 4px 20px #00000088"}}>
+          <div>
+            <div style={{fontSize:13,color:"#c0b0f8",fontWeight:600}}>⬡ Editando forma de la cava</div>
+            <div style={{fontSize:11,color:"#7060a0",marginTop:2}}>
+              Toca celdas para bloquearlas/activarlas · Las celdas con vino no se pueden bloquear
+            </div>
+          </div>
+          <button onClick={()=>setLayoutEdit(false)}
+            style={{background:"transparent",border:"1px solid #6040b0",borderRadius:8,
+              padding:"6px 14px",color:"#9080c8",cursor:"pointer",fontFamily:FONT,fontSize:13}}>
+            Listo ✓
+          </button>
+        </div>
+      )}
+ 
       {/* Move mode banner */}
       {moveMode&&(
         <div style={{position:"fixed",top:0,left:0,right:0,zIndex:150,
@@ -1216,7 +1357,7 @@ function CavaApp() {
           </button>
         </div>
       )}
-
+ 
       {/* Header */}
       <div style={{textAlign:"center",marginBottom:16}}>
         <div style={{display:"flex",justifyContent:"flex-end",marginBottom:6}}>
@@ -1231,7 +1372,7 @@ function CavaApp() {
             </button>
           </div>
         </div>
-
+ 
         <h1 style={{fontSize:30,fontWeight:300,letterSpacing:5,color:"#d4a853",margin:"0 0 3px"}}>MI CAVA</h1>
         <p style={{fontSize:11,color:"#6a4020",letterSpacing:2,margin:"0 0 4px"}}>
           {totalBotellas} botella{totalBotellas!==1?"s":""} · {ocupadas}/{totalCeldas} celdas · {cols}×{rows}
@@ -1242,7 +1383,7 @@ function CavaApp() {
           </p>
         )}
         {totalValor===0&&<div style={{marginBottom:12}}/>}
-
+ 
         <input ref={importRef} type="file" accept=".json" onChange={handleImport} style={{display:"none"}}/>
         <div style={{display:"flex",gap:7,justifyContent:"center",flexWrap:"wrap"}}>
           {[
@@ -1250,8 +1391,6 @@ function CavaApp() {
             ["≡",()=>setShowList(true),"#110600","#4a2800","#c8a880"],
             ["⬇",handleExport,"#0a1a0a","#2a4a2a","#7ab87a"],
             ["⬆",()=>importRef.current?.click(),"#0a1a0a","#2a4a2a","#7ab87a"],
-            ["⚙",()=>{const ok=window.confirm("¿Reconfigurar la cava? Se perderán todos los vinos.");if(ok){setConfigured(false);setGrid([]);saveToCloud({cols,rows,shape,grid:[]}).then(()=>setConfigured(false));}},
-              "transparent","#3a1800","#5a3a20"],
           ].map(([lbl,fn,bg,br,col])=>(
             <button key={lbl} onClick={fn}
               style={{background:bg,border:`1px solid ${br}`,borderRadius:8,
@@ -1259,9 +1398,21 @@ function CavaApp() {
               {lbl}
             </button>
           ))}
+          <button onClick={()=>{ setLayoutEdit(v=>!v); setMoveMode(null); }}
+            style={{background:layoutEdit?"#1a0060":"transparent",
+              border:`1px solid ${layoutEdit?"#8060ff":"#3a1800"}`,borderRadius:8,
+              padding:"7px 13px",color:layoutEdit?"#c0a0ff":"#5a3a20",
+              cursor:"pointer",fontSize:13,fontFamily:FONT}}>
+            {layoutEdit?"✓ Editando forma":"⬡ Forma"}
+          </button>
+          <button onClick={()=>{const ok=window.confirm("¿Reconfigurar la cava? Se perderán todos los vinos.");if(ok){setConfigured(false);setGrid([]);saveToCloud({cols,rows,shape,grid:[]}).then(()=>setConfigured(false));}}}
+            style={{background:"transparent",border:"1px solid #3a1800",borderRadius:8,
+              padding:"7px 13px",color:"#5a3a20",cursor:"pointer",fontSize:15,fontFamily:FONT}}>
+            ⚙
+          </button>
         </div>
       </div>
-
+ 
       {/* Stats */}
       {wineStats.length>0&&(
         <div style={{display:"flex",gap:7,justifyContent:"center",flexWrap:"wrap",marginBottom:14}}>
@@ -1273,11 +1424,14 @@ function CavaApp() {
           ))}
         </div>
       )}
-
+ 
       {/* Grid */}
       <div style={{display:"flex",justifyContent:"center",marginBottom:14,overflowX:"auto",padding:"4px 0"}}>
-        <div style={{display:"grid",gridTemplateColumns:`repeat(${cols},minmax(32px,46px))`,
-          gap:4,padding:"14px 18px",background:"#0e050088",
+        <div style={{
+          display:"grid",
+          gridTemplateColumns:`repeat(${cols},minmax(32px,46px))`,
+          gap:shape==="honeycomb"?3:4,
+          padding:"14px 18px",background:"#0e050088",
           border:"1px solid #2a1200",borderRadius:14,
           boxShadow:"inset 0 2px 20px #00000066"}}>
           {grid.map((row,r)=>row.map((cell,c)=>{
@@ -1290,6 +1444,10 @@ function CavaApp() {
             const isSource=moveMode&&moveMode.fromR===r&&moveMode.fromC===c;
             const isDragSrc=dragSource&&dragSource.r===r&&dragSource.c===c;
             const isDragOver=dragOver&&dragOver.r===r&&dragOver.c===c&&!isDisabled&&!isDragSrc;
+            const isHoneycomb=shape==="honeycomb";
+            // honeycomb: odd rows shift right by half a cell width
+            const hcTranslate=isHoneycomb&&r%2===1?"translateX(50%)":"";
+ 
             let bgC=null;
             if(!isEmpty){
               const freq={};
@@ -1298,25 +1456,34 @@ function CavaApp() {
               bgC=(WINE_TYPES.find(t=>t.id===dom)||WINE_TYPES[0]).color;
             }
             const venc=!isEmpty&&bottles.some(w=>w.guardaHasta&&new Date(w.guardaHasta)<new Date());
+ 
+            // layout-edit: can this cell be toggled?
+            const canToggle=layoutEdit&&(isDisabled||isEmpty);
+            const cantToggle=layoutEdit&&!isDisabled&&!isEmpty;
+ 
             let cellBorder;
-            if(isDisabled)         cellBorder="none";
-            else if(isDragOver)    cellBorder="2px solid #60d0ff";
-            else if(isSource)      cellBorder="2px solid #a080ff";
-            else if(isDragSrc)     cellBorder="2px solid #80a0ff";
-            else if(isHl)          cellBorder="2px solid #FFD700";
-            else if(venc)          cellBorder="1px solid #e0505099";
+            if(layoutEdit){
+              if(isDisabled)  cellBorder="1px dashed #3a1060";
+              else if(canToggle) cellBorder=`1px dashed ${isHov?"#a080ff":"#5040a0"}`;
+              else            cellBorder=`1px solid ${bgC||"#5a3010"}88`;
+            } else if(isDisabled)      cellBorder="none";
+            else if(isDragOver)        cellBorder="2px solid #60d0ff";
+            else if(isSource)          cellBorder="2px solid #a080ff";
+            else if(isDragSrc)         cellBorder="2px solid #80a0ff";
+            else if(isHl)              cellBorder="2px solid #FFD700";
+            else if(venc)              cellBorder="1px solid #e0505099";
             else if(moveMode&&!isDisabled) cellBorder=`1px dashed ${isHov?"#a080ff":"#5040a0"}`;
-            else if(isEmpty)       cellBorder=`1px dashed ${isHov?"#6b3a1f":"#2a1200"}`;
-            else                   cellBorder=`1px solid ${bgC}88`;
-
+            else if(isEmpty)           cellBorder=`1px dashed ${isHov?"#6b3a1f":"#2a1200"}`;
+            else                       cellBorder=`1px solid ${bgC}88`;
+ 
             return (
               <div key={`${r}-${c}`}
                 data-cell-key={`${r}-${c}`}
                 onClick={()=>handleCellClick(r,c)}
-                onMouseEnter={()=>!isDisabled&&setHoveredCell([r,c])}
+                onMouseEnter={()=>setHoveredCell([r,c])}
                 onMouseLeave={()=>setHoveredCell(null)}
-                title={isEmpty?"":bottles.map(w=>w.nombre).join(", ")}
-                draggable={!isEmpty&&!isDisabled&&!moveMode}
+                title={isEmpty?(isDisabled?"Bloqueada":""):bottles.map(w=>w.nombre).join(", ")}
+                draggable={!isEmpty&&!isDisabled&&!moveMode&&!layoutEdit}
                 onDragStart={e=>{e.dataTransfer.effectAllowed="move";setDragSource({r,c});}}
                 onDragOver={e=>{if(isDisabled||isDragSrc)return;e.preventDefault();e.dataTransfer.dropEffect="move";setDragOver({r,c});}}
                 onDragLeave={e=>{if(!e.currentTarget.contains(e.relatedTarget))setDragOver(null);}}
@@ -1325,21 +1492,44 @@ function CavaApp() {
                 onTouchStart={e=>handleTouchStartCell(r,c,isEmpty,e)}
                 onTouchMove={handleTouchMoveCell}
                 onTouchEnd={handleTouchEndCell}
-                style={{width:"100%",aspectRatio:"1/2.4",borderRadius:4,
-                  background:isDisabled?"transparent"
+                style={{
+                  width:"100%",
+                  aspectRatio:isHoneycomb?"1/1.15":"1/2.4",
+                  borderRadius:isHoneycomb?8:4,
+                  background:layoutEdit
+                    ?(isDisabled?"#08020a":cantToggle?`linear-gradient(160deg,${bgC}cc,${bgC}77)`:(isHov?"#1a0840":"#110030"))
+                    :isDisabled?"transparent"
                     :isDragOver?"#1a2a40":isSource?"#2a1060":isDragSrc?"#1a2060"
                     :isEmpty?(isHov&&(moveMode||dragSource)?"#1a1040":isHov?"#2a1200":"#160800")
                     :`linear-gradient(160deg,${bgC}cc,${bgC}77)`,
                   border:cellBorder,
-                  cursor:isDisabled?"default":(!isEmpty&&!moveMode?"grab":"pointer"),
+                  cursor:layoutEdit?(isDisabled||isEmpty?"pointer":"not-allowed")
+                    :isDisabled?"default":(!isEmpty&&!moveMode?"grab":"pointer"),
                   display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
-                  transition:"all 0.14s",opacity:isDragSrc?0.4:1,
-                  transform:isHov&&!isDisabled&&!isDragSrc?"scale(1.07)":"scale(1)",
-                  boxShadow:isDragOver?"0 0 14px #60d0ff66"
+                  transition:"all 0.12s",opacity:isDragSrc?0.4:1,
+                  transform:(()=>{
+                    const hover = isHov&&!isDisabled&&!isDragSrc&&!layoutEdit?"scale(1.07)":"scale(1)";
+                    return hcTranslate ? `${hcTranslate} ${hover}` : hover;
+                  })(),
+                  boxShadow:layoutEdit?"none"
+                    :isDragOver?"0 0 14px #60d0ff66"
                     :isSource?"0 0 12px #a080ff66":isHl?"0 0 14px #FFD70099"
                     :venc?"0 0 8px #e0505055":!isEmpty&&isHov?`0 4px 14px ${bgC}44`:"none",
                   position:"relative",overflow:"hidden"}}>
-                {!isDisabled&&!isEmpty&&(
+                {/* Layout-edit mode indicators */}
+                {layoutEdit&&isDisabled&&isHov&&(
+                  <span style={{fontSize:12,color:"#8060d0",userSelect:"none"}}>+</span>
+                )}
+                {layoutEdit&&!isDisabled&&isEmpty&&(
+                  <span style={{fontSize:9,color:isHov?"#e05050":"#4a2080",userSelect:"none"}}>
+                    {isHov?"✕":"○"}
+                  </span>
+                )}
+                {layoutEdit&&isDisabled&&!isHov&&(
+                  <span style={{fontSize:8,color:"#2a1050",userSelect:"none"}}>✕</span>
+                )}
+                {/* Normal mode */}
+                {!layoutEdit&&!isDisabled&&!isEmpty&&(
                   <>
                     <span style={{fontSize:11,lineHeight:1,userSelect:"none"}}>
                       {(WINE_TYPES.find(t=>t.id===bottles[0].tipo)||WINE_TYPES[0]).emoji}
@@ -1350,7 +1540,7 @@ function CavaApp() {
                     {isSource&&<span style={{fontSize:7,color:"#c0a0ff",marginTop:1}}>↕</span>}
                   </>
                 )}
-                {!isDisabled&&isEmpty&&(isHov||isDragOver)&&(
+                {!layoutEdit&&!isDisabled&&isEmpty&&(isHov||isDragOver)&&(
                   <span style={{fontSize:isDragOver?14:13,
                     color:isDragOver?"#60d0ff":"#6b3a1f",userSelect:"none"}}>
                     {isDragOver?"⤵":"+"}
@@ -1361,7 +1551,7 @@ function CavaApp() {
           }))}
         </div>
       </div>
-
+ 
       {/* Legend */}
       <div style={{textAlign:"center",marginBottom:8}}>
         <div style={{display:"flex",gap:10,justifyContent:"center",flexWrap:"wrap",fontSize:10,color:"#5a3a20"}}>
@@ -1369,12 +1559,12 @@ function CavaApp() {
           <span>· ×N = múltiples · ⚠ = guarda vencida · ↕ = en movimiento</span>
         </div>
       </div>
-
+ 
       {/* Modals */}
       {showAddForm&&(
         <WineForm onSave={handleAddWine} onClose={()=>{setShowAddForm(false);setPendingCell(null);}}/>
       )}
-
+ 
       {editTarget&&(
         <WineForm
           initial={editTarget.bottle}
@@ -1382,7 +1572,7 @@ function CavaApp() {
           onClose={()=>setEditTarget(null)}
         />
       )}
-
+ 
       {detailCell&&Array.isArray(grid[detailCell[0]]?.[detailCell[1]])&&grid[detailCell[0]][detailCell[1]].length>0&&(
         <CellDetail
           bottles={grid[detailCell[0]][detailCell[1]]}
@@ -1394,7 +1584,7 @@ function CavaApp() {
           onClose={()=>setDetailCell(null)}
         />
       )}
-
+ 
       {showSearch&&(
         <SearchPanel
           grid={grid}
@@ -1403,7 +1593,7 @@ function CavaApp() {
           onClose={()=>setShowSearch(false)}
         />
       )}
-
+ 
       {showList&&(
         <ListView
           grid={grid}
@@ -1416,7 +1606,7 @@ function CavaApp() {
     </div>
   );
 }
-
+ 
     // ── Mount React ──────────────────────────────────────────────────────────
     const _root = ReactDOM.createRoot(document.getElementById("root"));
     _root.render(React.createElement(CavaApp));
@@ -1424,7 +1614,7 @@ function CavaApp() {
     _splash.classList.add("hidden");
     setTimeout(() => { if (_splash.parentNode) _splash.parentNode.removeChild(_splash); }, 600);
   </script>
-
+ 
   <script>
     // Service Worker
     if ("serviceWorker" in navigator) {
