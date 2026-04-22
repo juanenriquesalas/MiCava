@@ -1165,16 +1165,7 @@ function CavaApp() {
       if (snap.exists()) {
         const d = snap.data();
         setCols(d.cols); setRows(d.rows); setShape(d.shape||"rectangle");
-        // Deserialize: flat cells map → 2D grid
-        const g = buildGrid(d.cols, d.rows);
-        if (d.cells) {
-          Object.entries(d.cells).forEach(([key, val]) => {
-            const [r, c] = key.split("_").map(Number);
-            if (g[r] && g[r][c] !== undefined) {
-              g[r][c] = val === "__disabled__" ? "__disabled__" : (val || []);
-            }
-          });
-        }
+        const g = flatToGrid(d.cols, d.rows, d.cells || {});
         setGrid(g); setConfigured(true);
       } else {
         setConfigured(false); setGrid([]);
@@ -1187,21 +1178,39 @@ function CavaApp() {
   // ── Save to Firestore ────────────────────────────────────────────────────────
   // Firestore cannot store arrays with mixed types (objects + strings).
   // Solution: serialize the 2D grid as a flat map { "r_c": cellData }
-  const gridToFlat = (grid) => {
+  const gridToFlat = (g) => {
     const cells = {};
-    grid.forEach((row, r) => row.forEach((cell, c) => {
-      const key = `${r}_${c}`;
-      if (cell === "__disabled__") {
-        cells[key] = "__disabled__";
-      } else if (Array.isArray(cell) && cell.length > 0) {
-        // Sanitize each bottle: remove undefined values
-        cells[key] = cell.map(b =>
-          JSON.parse(JSON.stringify(b, (k,v) => v === undefined ? null : v))
-        );
-      }
-      // Empty cells ([]) are omitted — they're the default
-    }));
+    if (!Array.isArray(g)) return cells;
+    g.forEach((row, r) => {
+      if (!Array.isArray(row)) return;
+      row.forEach((cell, c) => {
+        const key = `${r}_${c}`;
+        if (cell === "__disabled__") {
+          cells[key] = "__disabled__";
+        } else if (Array.isArray(cell) && cell.length > 0) {
+          cells[key] = cell.map(b => {
+            // Deep-clean: remove undefined, convert to plain object
+            try { return JSON.parse(JSON.stringify(b, (k,v)=>v===undefined?null:v)); }
+            catch { return b; }
+          });
+        }
+        // empty cells omitted (default)
+      });
+    });
     return cells;
+  };
+
+  // Build a clean grid from a cells map (handles both old and new format)
+  const flatToGrid = (cols, rows, cells) => {
+    const g = buildGrid(cols, rows);
+    Object.entries(cells || {}).forEach(([key, val]) => {
+      const parts = key.split("_");
+      const r = parseInt(parts[0]), c = parseInt(parts[1]);
+      if (!isNaN(r) && !isNaN(c) && g[r] && g[r][c] !== undefined) {
+        g[r][c] = val === "__disabled__" ? "__disabled__" : (Array.isArray(val) ? val : []);
+      }
+    });
+    return g;
   };
 
   const saveToCloud = useCallback(async (state)=>{
@@ -1376,27 +1385,52 @@ function CavaApp() {
   const handleImport=(e)=>{
     const file=e.target.files[0]; if(!file) return;
     const reader=new FileReader();
-    reader.onload=(ev)=>{
+    reader.onload=async (ev)=>{
       try{
         const d=JSON.parse(ev.target.result);
-        if(d.cols&&d.rows&&(d.grid||d.cells)){
-          const cols=d.cols, rows=d.rows, shape=d.shape||"rectangle";
-          // Support both old format (grid array) and new format (cells map)
-          let grid;
-          if(d.grid){
-            grid=d.grid;
-          } else {
-            grid=buildGrid(cols,rows);
-            Object.entries(d.cells||{}).forEach(([key,val])=>{
-              const[r,c]=key.split("_").map(Number);
-              if(grid[r]&&grid[r][c]!==undefined) grid[r][c]=val==="__disabled__"?"__disabled__":(val||[]);
-            });
-          }
-          setCols(cols);setRows(rows);setShape(shape);
-          setGrid(grid);setConfigured(true);
-          saveToCloud({cols,rows,shape,grid});
-        } else alert("Archivo inválido.");
-      }catch(err){console.error(err);alert("No se pudo leer el archivo.");}
+        if(!d.cols||!d.rows||(d.grid===undefined&&d.cells===undefined)){
+          alert("Archivo inválido: faltan datos de la cava."); return;
+        }
+        const iCols  = Number(d.cols);
+        const iRows  = Number(d.rows);
+        const iShape = d.shape || "rectangle";
+
+        // Reconstruct grid from old format (grid array) or new format (cells map)
+        let iGrid;
+        if (d.grid && Array.isArray(d.grid)) {
+          iGrid = d.grid;
+        } else {
+          iGrid = flatToGrid(iCols, iRows, d.cells || {});
+        }
+
+        // Save directly to Firestore with the known values (bypasses stale closure)
+        if (user) {
+          setSyncing(true); setSaveError("");
+          try {
+            const { db } = getFirebase();
+            const payload = {
+              cols:  iCols,
+              rows:  iRows,
+              shape: iShape,
+              cells: gridToFlat(iGrid),
+            };
+            await setDoc(doc(db,"cavas",user.uid), payload);
+            // Only update local state after successful cloud save
+            setCols(iCols); setRows(iRows); setShape(iShape);
+            setGrid(iGrid); setConfigured(true);
+          } catch(err) {
+            console.error("Import save error:", err.code, err.message);
+            setSaveError(`Error al guardar: ${err.code || err.message}`);
+          } finally { setSyncing(false); }
+        } else {
+          // Not logged in — just load locally
+          setCols(iCols); setRows(iRows); setShape(iShape);
+          setGrid(iGrid); setConfigured(true);
+        }
+      } catch(err) {
+        console.error("Import parse error:", err);
+        alert("No se pudo leer el archivo. Asegúrate de que sea un JSON válido.");
+      }
     };
     reader.readAsText(file); e.target.value="";
   };
