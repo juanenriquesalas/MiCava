@@ -1116,42 +1116,26 @@ function SetupScreen({ onConfirm }) {
   );
 }
 
-// ─── Grid serialization helpers (module-level, no closure issues) ─────────────
+// ─── Grid serialization — guardado como JSON string en Firestore ──────────────
+// Firestore rechaza arrays con tipos mixtos (objetos + strings "__disabled__").
+// Solución: serializar todo el estado como un string JSON en un solo campo.
 
-// 2D grid → flat Firestore-safe map { "r_c": data }
-function gridToFlat(g) {
-  const cells = {};
-  if (!Array.isArray(g)) return cells;
-  g.forEach((row, r) => {
-    if (!Array.isArray(row)) return;
-    row.forEach((cell, c) => {
-      const key = `${r}_${c}`;
-      if (cell === "__disabled__") {
-        cells[key] = "__disabled__";
-      } else if (Array.isArray(cell) && cell.length > 0) {
-        cells[key] = cell.map(b => {
-          try { return JSON.parse(JSON.stringify(b, (k,v) => v===undefined ? null : v)); }
-          catch { return b; }
-        });
-      }
-      // empty cells omitted — reconstructed as [] by flatToGrid
-    });
-  });
-  return cells;
+function stateToDoc(state) {
+  try {
+    return { data: JSON.stringify(state, (k,v) => v === undefined ? null : v) };
+  } catch(e) {
+    console.error("stateToDoc error:", e);
+    return null;
+  }
 }
 
-// Flat Firestore map → 2D grid
-function flatToGrid(cols, rows, cells) {
-  const g = buildGrid(cols, rows);
-  Object.entries(cells || {}).forEach(([key, val]) => {
-    const parts = key.split("_");
-    const r = parseInt(parts[0]), c = parseInt(parts[1]);
-    if (!isNaN(r) && !isNaN(c) && g[r] && g[r][c] !== undefined) {
-      g[r][c] = val === "__disabled__" ? "__disabled__"
-               : Array.isArray(val) ? val : [];
-    }
-  });
-  return g;
+function docToState(doc) {
+  try {
+    return JSON.parse(doc.data);
+  } catch(e) {
+    console.error("docToState error:", e);
+    return null;
+  }
 }
 
 // ─── Main CavaApp ─────────────────────────────────────────────────────────────
@@ -1201,42 +1185,41 @@ function CavaApp() {
     const ref = doc(db, "cavas", user.uid);
     const unsub = onSnapshot(ref, snap=>{
       if (snap.exists()) {
-        const d = snap.data();
-        setCols(d.cols); setRows(d.rows); setShape(d.shape||"rectangle");
-        const g = flatToGrid(d.cols, d.rows, d.cells || {});
-        setGrid(g); setConfigured(true);
+        const parsed = docToState(snap.data());
+        if (parsed && parsed.cols && parsed.rows && parsed.grid) {
+          setCols(parsed.cols);
+          setRows(parsed.rows);
+          setShape(parsed.shape || "rectangle");
+          setGrid(parsed.grid);
+          setConfigured(true);
+        }
       } else {
         setConfigured(false); setGrid([]);
       }
-    }, err=>{ console.error("Firestore:", err); });
+    }, err=>{ console.error("Firestore onSnapshot error:", err); });
     unsubRef.current = unsub;
     return ()=>unsub();
   },[user]);
 
   const saveToCloud = useCallback(async (state)=>{
     if (!user) return;
+    const payload = stateToDoc(state);
+    if (!payload) { setSaveError("Error al serializar los datos."); return; }
     setSyncing(true); setSaveError("");
     try {
       const { db } = getFirebase();
-      const payload = {
-        cols:  state.cols,
-        rows:  state.rows,
-        shape: state.shape || "rectangle",
-        cells: gridToFlat(state.grid),
-      };
-      await setDoc(doc(db,"cavas",user.uid), payload);
+      await setDoc(doc(db, "cavas", user.uid), payload);
     } catch(e) {
       console.error("Firestore save error:", e.code, e.message);
       const msgs = {
         "permission-denied": "Permiso denegado. Revisa las reglas de Firestore.",
-        "unavailable":       "Sin conexión. Los cambios se guardarán al reconectar.",
+        "unavailable":       "Sin conexión. Reintentando…",
         "resource-exhausted":"Límite de Firebase alcanzado. Intenta más tarde.",
-        "invalid-argument":  "Datos inválidos — código: invalid-argument.",
         "unauthenticated":   "Sesión expirada. Vuelve a iniciar sesión.",
       };
-      setSaveError(msgs[e.code] || `Error: ${e.code || e.message}`);
+      setSaveError(msgs[e.code] || `Error al guardar: ${e.code || e.message}`);
     } finally { setSyncing(false); }
-  },[user]);
+  }, [user]);
 
   const persistGrid = useCallback((newGrid)=>{
     setGrid(newGrid);
@@ -1388,34 +1371,23 @@ function CavaApp() {
     reader.onload=async (ev)=>{
       try{
         const d=JSON.parse(ev.target.result);
-        if(!d.cols||!d.rows||(d.grid===undefined&&d.cells===undefined)){
+        if(!d.cols||!d.rows||!d.grid){
           alert("Archivo inválido: faltan datos de la cava."); return;
         }
         const iCols  = Number(d.cols);
         const iRows  = Number(d.rows);
         const iShape = d.shape || "rectangle";
+        const iGrid  = d.grid;
+        const state  = { cols:iCols, rows:iRows, shape:iShape, grid:iGrid };
 
-        // Reconstruct grid from old format (grid array) or new format (cells map)
-        let iGrid;
-        if (d.grid && Array.isArray(d.grid)) {
-          iGrid = d.grid;
-        } else {
-          iGrid = flatToGrid(iCols, iRows, d.cells || {});
-        }
-
-        // Save directly to Firestore with the known values (bypasses stale closure)
         if (user) {
           setSyncing(true); setSaveError("");
           try {
+            const payload = stateToDoc(state);
+            if (!payload) throw new Error("Serialización fallida");
             const { db } = getFirebase();
-            const payload = {
-              cols:  iCols,
-              rows:  iRows,
-              shape: iShape,
-              cells: gridToFlat(iGrid),
-            };
             await setDoc(doc(db,"cavas",user.uid), payload);
-            // Only update local state after successful cloud save
+            // Update local state only after confirmed cloud save
             setCols(iCols); setRows(iRows); setShape(iShape);
             setGrid(iGrid); setConfigured(true);
           } catch(err) {
@@ -1423,7 +1395,6 @@ function CavaApp() {
             setSaveError(`Error al guardar: ${err.code || err.message}`);
           } finally { setSyncing(false); }
         } else {
-          // Not logged in — just load locally
           setCols(iCols); setRows(iRows); setShape(iShape);
           setGrid(iGrid); setConfigured(true);
         }
