@@ -53,16 +53,16 @@
     <button id="btn-dismiss">✕</button>
   </div>
   <div id="root"></div>
- 
+
   <!-- React -->
   <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
- 
+
   <!-- Firebase compat SDK -->
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
- 
+
   <!-- Bridge: expone la API modular que usa app.js via el SDK compat -->
   <script>
     window.firebaseApp = {
@@ -77,6 +77,14 @@
       signOut:                        (auth) => auth.signOut(),
       updateProfile:                  (user, data) => user.updateProfile(data),
       sendPasswordResetEmail:         (auth, email) => auth.sendPasswordResetEmail(email),
+      signInWithGoogle: (auth) => {
+        const provider = new firebase.auth.GoogleAuthProvider();
+        return auth.signInWithPopup(provider);
+      },
+      signInWithFacebook: (auth) => {
+        const provider = new firebase.auth.FacebookAuthProvider();
+        return auth.signInWithPopup(provider);
+      },
     };
     window.firebaseFirestore = {
       getFirestore: (app) => app.firestore(),
@@ -86,33 +94,32 @@
       onSnapshot:   (ref, cb, errCb) => ref.onSnapshot(cb, errCb),
     };
   </script>
- 
+
   <!-- Babel Standalone -->
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
- 
+
   <!-- App: todo el JSX inline, Babel lo transforma en el navegador -->
   <script type="text/babel">
 const { useState, useEffect, useRef, useCallback, useMemo } = React;
- 
+
 // ─── Firebase config ──────────────────────────────────────────────────────────
 // ▶ REEMPLAZA estos valores con los de tu proyecto Firebase
 // (Firebase Console → Project Settings → Your apps → SDK setup → Config)
 const FIREBASE_CONFIG = {
-  apiKey: "AIzaSyC6LYgKefzh1-PB2YMfsVj7uNFX4IE5uyI",
-  authDomain: "micavapp.firebaseapp.com",
-  databaseURL: "https://micavapp-default-rtdb.firebaseio.com",
-  projectId: "micavapp",
-  storageBucket: "micavapp.firebasestorage.app",
-  messagingSenderId: "176713824457",
-  appId: "1:176713824457:web:ebc1ae114e7737fcb6b518"
+  apiKey:            "TU_API_KEY",
+  authDomain:        "TU_PROYECTO.firebaseapp.com",
+  projectId:         "TU_PROYECTO",
+  storageBucket:     "TU_PROYECTO.appspot.com",
+  messagingSenderId: "TU_SENDER_ID",
+  appId:             "TU_APP_ID",
 };
- 
+
 // ─── Firebase SDK (cargado desde CDN en index.html) ───────────────────────────
 const {
   initializeApp,
   getApps,
 } = window.firebaseApp || {};
- 
+
 const {
   getAuth,
   onAuthStateChanged,
@@ -121,8 +128,10 @@ const {
   signOut,
   updateProfile,
   sendPasswordResetEmail,
+  signInWithGoogle,
+  signInWithFacebook,
 } = window.firebaseAuth || {};
- 
+
 const {
   getFirestore,
   doc,
@@ -130,7 +139,7 @@ const {
   setDoc,
   onSnapshot,
 } = window.firebaseFirestore || {};
- 
+
 // Init Firebase once
 let _app, _auth, _db;
 function getFirebase() {
@@ -141,7 +150,7 @@ function getFirebase() {
   }
   return { auth: _auth, db: _db };
 }
- 
+
 // ─── constants ────────────────────────────────────────────────────────────────
 const WINE_TYPES = [
   { id:"tinto",     label:"Tinto",        color:"#7B1D1D", emoji:"🍷" },
@@ -150,7 +159,7 @@ const WINE_TYPES = [
   { id:"espumante", label:"Espumante",    color:"#7a9e6e", emoji:"🍾" },
   { id:"dulce",     label:"Dulce/Postre", color:"#8B4513", emoji:"🍯" },
 ];
- 
+
 const CEPAS_POR_TIPO = {
   tinto:     ["Cabernet Sauvignon","Carménère","Syrah","Merlot","Malbec","Carignan","Pinot Noir","Tempranillo","Cabernet Franc","Nebbiolo","Aglianico","Grenache","Otra"],
   blanco:    ["Sauvignon Blanc","Chardonnay","Torrontés","Riesling","Viognier","Pinot Grigio","Gewürztraminer","Chenin Blanc","Albariño","Verdejo","Otra"],
@@ -158,7 +167,7 @@ const CEPAS_POR_TIPO = {
   espumante: ["Chardonnay","Pinot Noir","Pinot Meunier","Riesling","Prosecco (Glera)","Torrontés","Otra"],
   dulce:     ["Moscatel","Riesling","Gewürztraminer","Pedro Ximénez","Semillon","Otro"],
 };
- 
+
 const MARIDAJES = [
   { id:"carnes_rojas", label:"Carnes rojas",  emoji:"🥩" },
   { id:"aves",         label:"Aves",           emoji:"🍗" },
@@ -173,21 +182,21 @@ const MARIDAJES = [
   { id:"pizzas",       label:"Pizzas",         emoji:"🍕" },
   { id:"arroz",        label:"Arroz/Risotto",  emoji:"🍚" },
 ];
- 
+
 const SHAPES = [
   { id:"rectangle", label:"Rectangular", icon:"▬",
     desc:"Cuadrícula estándar. Bloquea celdas para personalizar la forma." },
   { id:"honeycomb", label:"Panal de abeja", icon:"⬡",
     desc:"Celdas hexagonales desplazadas. Imita la disposición real de una cava." },
 ];
- 
+
 // ─── helpers ──────────────────────────────────────────────────────────────────
 // Crea una grilla vacía (todas las celdas activas).
 // Las celdas deshabilitadas se manejan como "__disabled__" en el array.
 function buildGrid(cols, rows) {
   return Array.from({length:rows}, ()=>Array.from({length:cols},()=>[]));
 }
- 
+
 // Toggle disabled state of a cell (used in layout-edit mode)
 function toggleDisabled(grid, r, c) {
   const next = grid.map(row => row.map(cell =>
@@ -196,9 +205,9 @@ function toggleDisabled(grid, r, c) {
   next[r][c] = next[r][c] === "__disabled__" ? [] : "__disabled__";
   return next;
 }
- 
+
 const today = () => new Date().toISOString().slice(0,10);
- 
+
 // ─── styles ───────────────────────────────────────────────────────────────────
 const FONT = "'Helvetica Neue',Helvetica,Arial,sans-serif";
 const iS = { width:"100%", background:"#0e0500", border:"1px solid #4a2800",
@@ -226,7 +235,7 @@ const btnPrimary = { background:"linear-gradient(135deg,#7B1D1D,#a83232)", borde
 const btnGhost = { background:"transparent", border:"1px solid #4a2800",
   borderRadius:8, padding:"11px 18px", color:"#9a7040",
   cursor:"pointer", fontSize:15, fontFamily:FONT };
- 
+
 // ─── StarRating ───────────────────────────────────────────────────────────────
 function StarRating({ value=0, onChange, readOnly=false }) {
   const [hov, setHov] = useState(0);
@@ -244,7 +253,7 @@ function StarRating({ value=0, onChange, readOnly=false }) {
     </div>
   );
 }
- 
+
 // ─── TagInput ─────────────────────────────────────────────────────────────────
 function TagInput({ tags=[], onChange }) {
   const [input, setInput] = useState("");
@@ -277,7 +286,7 @@ function TagInput({ tags=[], onChange }) {
     </div>
   );
 }
- 
+
 // ─── AuthScreen ───────────────────────────────────────────────────────────────
 function AuthScreen({ onAuth }) {
   const [mode,  setMode]  = useState("login"); // "login" | "register" | "reset"
@@ -287,14 +296,34 @@ function AuthScreen({ onAuth }) {
   const [error, setError] = useState("");
   const [info,  setInfo]  = useState("");
   const [busy,  setBusy]  = useState(false);
- 
+
   const switchMode = (m) => { setMode(m); setError(""); setInfo(""); };
- 
+
+  const signInSocial = async (provider) => {
+    setError(""); setBusy(true);
+    try {
+      const { auth } = getFirebase();
+      const fn = provider === "google" ? signInWithGoogle : signInWithFacebook;
+      const cred = await fn(auth);
+      onAuth(cred.user);
+    } catch(e) {
+      const msgs = {
+        "auth/popup-closed-by-user":    "Cerraste la ventana antes de completar el acceso.",
+        "auth/popup-blocked":           "El navegador bloqueó la ventana emergente. Permite popups para este sitio.",
+        "auth/account-exists-with-different-credential":
+          "Ya existe una cuenta con ese email usando otro método. Inicia sesión con el método original.",
+        "auth/cancelled-popup-request": "",
+      };
+      const msg = msgs[e.code];
+      if (msg !== "") setError(msg || e.message);
+    } finally { setBusy(false); }
+  };
+
   const submit = async () => {
     setError(""); setInfo(""); setBusy(true);
     try {
       const { auth } = getFirebase();
- 
+
       if (mode === "reset") {
         if (!email.trim()) { setError("Ingresa tu email."); setBusy(false); return; }
         await sendPasswordResetEmail(auth, email.trim());
@@ -302,7 +331,7 @@ function AuthScreen({ onAuth }) {
         setBusy(false);
         return;
       }
- 
+
       if (mode === "register") {
         const cred = await createUserWithEmailAndPassword(auth, email.trim(), pass);
         await updateProfile(cred.user, { displayName: name.trim() || email.trim() });
@@ -324,9 +353,9 @@ function AuthScreen({ onAuth }) {
       setError(msgs[e.code] || e.message);
     } finally { setBusy(false); }
   };
- 
+
   const titles = { login:"INICIA SESIÓN", register:"CREA TU CUENTA", reset:"RECUPERAR CONTRASEÑA" };
- 
+
   return (
     <div style={{minHeight:"100vh",
       background:"radial-gradient(ellipse at 30% 20%,#1a0800,#0a0400 60%,#000)",
@@ -335,9 +364,35 @@ function AuthScreen({ onAuth }) {
         <div style={{fontSize:52,marginBottom:12}}>🍷</div>
         <h1 style={{fontSize:34,fontWeight:300,letterSpacing:5,color:"#d4a853",margin:"0 0 6px"}}>MI CAVA</h1>
         <p style={{color:"#6a4020",fontSize:12,letterSpacing:3,marginBottom:28}}>{titles[mode]}</p>
- 
+
         <div style={{background:"#11050088",border:"1px solid #3a1a00",borderRadius:16,padding:"28px 28px"}}>
- 
+
+          {/* Social login buttons — only on login and register screens */}
+          {mode !== "reset" && (<>
+            <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:18}}>
+              <button onClick={()=>signInSocial("google")} disabled={busy}
+                style={{display:"flex",alignItems:"center",justifyContent:"center",gap:10,
+                  background:"#fff",border:"none",borderRadius:8,padding:"11px",
+                  color:"#222",cursor:busy?"not-allowed":"pointer",fontSize:14,
+                  fontFamily:FONT,opacity:busy?0.6:1,fontWeight:500}}>
+                <svg width="18" height="18" viewBox="0 0 48 48">
+                  <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+                  <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+                  <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+                  <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+                </svg>
+                Continuar con Google
+              </button>
+            </div>
+
+            {/* Divider */}
+            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:18}}>
+              <div style={{flex:1,height:1,background:"#3a1a00"}}/>
+              <span style={{fontSize:12,color:"#5a3a20"}}>o con email</span>
+              <div style={{flex:1,height:1,background:"#3a1a00"}}/>
+            </div>
+          </>)}
+
           {/* Nombre solo en registro */}
           {mode==="register" && (
             <div style={{marginBottom:14}}>
@@ -346,7 +401,7 @@ function AuthScreen({ onAuth }) {
                 style={iS} placeholder="Tu nombre"/>
             </div>
           )}
- 
+
           {/* Email: siempre visible */}
           <div style={{marginBottom:14}}>
             <label style={lS}>Email</label>
@@ -354,7 +409,7 @@ function AuthScreen({ onAuth }) {
               style={iS} placeholder="correo@ejemplo.com"
               onKeyDown={e=>e.key==="Enter"&&submit()}/>
           </div>
- 
+
           {/* Contraseña: solo login y registro */}
           {mode!=="reset" && (
             <div style={{marginBottom:error||info?12:8}}>
@@ -364,7 +419,7 @@ function AuthScreen({ onAuth }) {
                 onKeyDown={e=>e.key==="Enter"&&submit()}/>
             </div>
           )}
- 
+
           {/* Link "Olvidé mi contraseña" — solo en login */}
           {mode==="login" && !error && !info && (
             <div style={{textAlign:"right",marginBottom:16}}>
@@ -375,7 +430,7 @@ function AuthScreen({ onAuth }) {
               </button>
             </div>
           )}
- 
+
           {/* Mensaje de error */}
           {error && (
             <div style={{background:"#3a0a0a",border:"1px solid #7B1D1D",borderRadius:8,
@@ -383,7 +438,7 @@ function AuthScreen({ onAuth }) {
               {error}
             </div>
           )}
- 
+
           {/* Mensaje de éxito (reset enviado) */}
           {info && (
             <div style={{background:"#0a2a0a",border:"1px solid #2a5a2a",borderRadius:8,
@@ -391,7 +446,7 @@ function AuthScreen({ onAuth }) {
               ✅ {info}
             </div>
           )}
- 
+
           {/* Botón principal */}
           {!info && (
             <button onClick={submit} disabled={busy}
@@ -400,7 +455,7 @@ function AuthScreen({ onAuth }) {
               {busy ? "…" : mode==="login" ? "Entrar" : mode==="register" ? "Crear cuenta" : "Enviar enlace"}
             </button>
           )}
- 
+
           {/* Links secundarios */}
           <div style={{marginTop:14,display:"flex",flexDirection:"column",gap:8}}>
             {mode==="login" && (
@@ -430,14 +485,14 @@ function AuthScreen({ onAuth }) {
     </div>
   );
 }
- 
+
 // ─── WineForm (agregar Y editar) ──────────────────────────────────────────────
 const EMPTY_FORM = {
   nombre:"", bodega:"", añada:"", tipo:"tinto", pais:"",
   cepas:[], cepaCustom:"", maridajes:[], notas:"", estrellas:0,
   fechaCompra:today(), guardaHasta:"", cantidad:1, tags:[], precio:"",
 };
- 
+
 function WineForm({ onSave, onClose, initial=null }) {
   const isEdit = !!initial;
   const [form, setForm] = useState(()=>{
@@ -458,7 +513,7 @@ function WineForm({ onSave, onClose, initial=null }) {
   const set = (k,v) => setForm(f=>({...f,[k]:v}));
   const valid = form.nombre.trim().length > 0;
   const cepas = CEPAS_POR_TIPO[form.tipo] || [];
- 
+
   const handleSave = () => {
     if (!valid) return;
     const cepaFinal = [
@@ -469,14 +524,14 @@ function WineForm({ onSave, onClose, initial=null }) {
     onSave({...form, cepa: cepaFinal});
     onClose();
   };
- 
+
   return (
     <div style={modalWrap}>
       <div style={{...modalBox,width:"min(520px,96vw)"}}>
         <h2 style={{margin:"0 0 20px",fontSize:20,letterSpacing:2,fontWeight:400,color:"#d4a853"}}>
           {isEdit ? "Editar Vino" : "Agregar Vino"}
         </h2>
- 
+
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 12px"}}>
           {[["nombre","Nombre *"],["bodega","Bodega"],["añada","Añada"],["pais","País / Región"]].map(([k,lbl])=>(
             <div key={k} style={{marginBottom:12}}>
@@ -485,7 +540,7 @@ function WineForm({ onSave, onClose, initial=null }) {
             </div>
           ))}
         </div>
- 
+
         {/* tipo */}
         <div style={{marginBottom:12}}>
           <label style={lS}>Tipo</label>
@@ -496,7 +551,7 @@ function WineForm({ onSave, onClose, initial=null }) {
             ))}
           </div>
         </div>
- 
+
         {/* cepa */}
         <div style={{marginBottom:12}}>
           <label style={lS}>
@@ -522,7 +577,7 @@ function WineForm({ onSave, onClose, initial=null }) {
             </div>
           )}
         </div>
- 
+
         {/* maridaje */}
         <div style={{marginBottom:12}}>
           <label style={lS}>Maridaje</label>
@@ -537,7 +592,7 @@ function WineForm({ onSave, onClose, initial=null }) {
             })}
           </div>
         </div>
- 
+
         {/* fechas */}
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 12px",marginBottom:12}}>
           <div>
@@ -551,26 +606,26 @@ function WineForm({ onSave, onClose, initial=null }) {
               style={{...iS,colorScheme:"dark"}}/>
           </div>
         </div>
- 
+
         {/* estrellas */}
         <div style={{marginBottom:12}}>
           <label style={lS}>Puntaje personal</label>
           <StarRating value={form.estrellas} onChange={v=>set("estrellas",v)}/>
         </div>
- 
+
         {/* notas */}
         <div style={{marginBottom:12}}>
           <label style={lS}>Notas de cata</label>
           <textarea value={form.notas} onChange={e=>set("notas",e.target.value)} rows={2}
             style={{...iS,resize:"vertical"}}/>
         </div>
- 
+
         {/* tags */}
         <div style={{marginBottom:12}}>
           <label style={lS}>Etiquetas</label>
           <TagInput tags={form.tags} onChange={v=>set("tags",v)}/>
         </div>
- 
+
         {/* precio + cantidad */}
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 16px",marginBottom:20}}>
           <div>
@@ -594,7 +649,7 @@ function WineForm({ onSave, onClose, initial=null }) {
             </div>
           </div>
         </div>
- 
+
         <div style={{display:"flex",gap:12}}>
           <button onClick={handleSave} disabled={!valid}
             style={{...btnPrimary,flex:1,opacity:valid?1:0.5,cursor:valid?"pointer":"not-allowed"}}>
@@ -606,7 +661,7 @@ function WineForm({ onSave, onClose, initial=null }) {
     </div>
   );
 }
- 
+
 // ─── WineCard ─────────────────────────────────────────────────────────────────
 function WineCard({ w, onRetire, onEdit, compact=false }) {
   const [confirm, setConfirm] = useState(false);
@@ -615,7 +670,7 @@ function WineCard({ w, onRetire, onEdit, compact=false }) {
   const guard = w.guardaHasta ? new Date(w.guardaHasta) : null;
   const vencida = guard && guard < now;
   const proxima = guard && !vencida && (guard-now)<1000*60*60*24*180;
- 
+
   return (
     <div style={{background:tipo.color+"18",border:`1px solid ${tipo.color}${vencida?"99":"44"}`,
       borderRadius:10,padding:compact?"10px 14px":"14px 16px",marginBottom:10,
@@ -665,7 +720,7 @@ function WineCard({ w, onRetire, onEdit, compact=false }) {
           {w.notas&&!compact&&<div style={{fontSize:12,color:"#c8b07a",fontStyle:"italic",marginTop:5}}>"{w.notas}"</div>}
         </div>
       </div>
- 
+
       {/* actions */}
       <div style={{display:"flex",gap:8,marginTop:10,flexWrap:"wrap"}}>
         {onEdit&&(
@@ -695,7 +750,7 @@ function WineCard({ w, onRetire, onEdit, compact=false }) {
     </div>
   );
 }
- 
+
 // ─── CellDetail ───────────────────────────────────────────────────────────────
 function CellDetail({ bottles, cellIndex, onRemoveBottle, onAddMore, onStartMove, onEditBottle, onClose }) {
   return (
@@ -732,29 +787,29 @@ function CellDetail({ bottles, cellIndex, onRemoveBottle, onAddMore, onStartMove
     </div>
   );
 }
- 
+
 // ─── ListView ─────────────────────────────────────────────────────────────────
 function ListView({ grid, onRemoveBottle, onHighlight, onEditBottle, onClose }) {
   const [sortBy, setSortBy] = useState("nombre");
   const [filterTipo, setFilterTipo] = useState("");
   const [filterTag,  setFilterTag]  = useState("");
   const [q, setQ] = useState("");
- 
+
   const allBottles = [];
   grid.forEach((row,r)=>row.forEach((cell,c)=>{
     if(!Array.isArray(cell)) return;
     cell.forEach((w,idx)=>allBottles.push({w,r,c,idx}));
   }));
- 
+
   const allTags = [...new Set(allBottles.flatMap(({w})=>w.tags||[]))].sort();
- 
+
   let filtered = allBottles.filter(({w})=>{
     const hay=[w.nombre,w.bodega,w.cepa,w.pais,w.notas].join(" ").toLowerCase();
     return (!filterTipo||w.tipo===filterTipo)
       && (!filterTag||(w.tags||[]).includes(filterTag))
       && (!q||hay.includes(q.toLowerCase()));
   });
- 
+
   filtered.sort((a,b)=>{
     if(sortBy==="nombre")   return a.w.nombre.localeCompare(b.w.nombre);
     if(sortBy==="añada")    return (a.w.añada||"9999").localeCompare(b.w.añada||"9999");
@@ -763,9 +818,9 @@ function ListView({ grid, onRemoveBottle, onHighlight, onEditBottle, onClose }) 
     if(sortBy==="precio")   return (Number(b.w.precio)||0)-(Number(a.w.precio)||0);
     return 0;
   });
- 
+
   const totalValor = allBottles.reduce((s,{w})=>(s+(Number(w.precio)||0)*(Number(w.cantidad)||1)),0);
- 
+
   return (
     <div style={{...modalWrap,alignItems:"flex-start",paddingTop:20}}>
       <div style={{...modalBox,width:"min(620px,96vw)",margin:"20px auto"}}>
@@ -782,7 +837,7 @@ function ListView({ grid, onRemoveBottle, onHighlight, onEditBottle, onClose }) 
           </div>
           <button onClick={onClose} style={{background:"transparent",border:"none",color:"#6a4020",fontSize:24,cursor:"pointer",padding:"4px 8px"}}>✕</button>
         </div>
- 
+
         <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:12}}>
           <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Buscar…"
             style={{...iS,flex:"1 1 120px",padding:"7px 10px",fontSize:13}}/>
@@ -799,7 +854,7 @@ function ListView({ grid, onRemoveBottle, onHighlight, onEditBottle, onClose }) 
             </select>
           )}
         </div>
- 
+
         <div style={{display:"flex",gap:6,marginBottom:14,flexWrap:"wrap",alignItems:"center"}}>
           <span style={{fontSize:11,color:"#6a4020",letterSpacing:1}}>ORDENAR:</span>
           {[["nombre","Nombre"],["añada","Añada"],["estrellas","Estrellas"],["guarda","Guarda"],["precio","Precio"]].map(([k,lbl])=>(
@@ -810,7 +865,7 @@ function ListView({ grid, onRemoveBottle, onHighlight, onEditBottle, onClose }) 
                 cursor:"pointer",fontSize:12,fontFamily:FONT}}>{lbl}</button>
           ))}
         </div>
- 
+
         <div style={{maxHeight:"55vh",overflowY:"auto",paddingRight:4}}>
           {filtered.length===0&&<p style={{color:"#5a3a20",textAlign:"center",padding:"24px 0"}}>Sin resultados</p>}
           {filtered.map(({w,r,c,idx},i)=>(
@@ -833,13 +888,13 @@ function ListView({ grid, onRemoveBottle, onHighlight, onEditBottle, onClose }) 
     </div>
   );
 }
- 
+
 // ─── SearchPanel ──────────────────────────────────────────────────────────────
 function SearchPanel({ grid, onHighlight, onEditBottle, onClose }) {
   const [q, setQ] = useState("");
   const ref = useRef();
   useEffect(()=>{ setTimeout(()=>ref.current?.focus(),100); },[]);
- 
+
   const query = q.trim().toLowerCase();
   const results = [];
   if (query) grid.forEach((row,r)=>row.forEach((cell,c)=>{
@@ -849,7 +904,7 @@ function SearchPanel({ grid, onHighlight, onEditBottle, onClose }) {
       if(hay.includes(query)) results.push({r,c,idx,w});
     });
   }));
- 
+
   return (
     <div style={{...modalWrap,alignItems:"flex-start",paddingTop:40,zIndex:300}}>
       <div style={{...modalBox,width:"min(480px,96vw)",margin:"20px auto"}}>
@@ -894,7 +949,7 @@ function SearchPanel({ grid, onHighlight, onEditBottle, onClose }) {
     </div>
   );
 }
- 
+
 // ─── SetupScreen ──────────────────────────────────────────────────────────────
 function SetupScreen({ onConfirm }) {
   const [cols,    setCols]    = useState(8);
@@ -902,7 +957,7 @@ function SetupScreen({ onConfirm }) {
   const [shape,   setShape]   = useState("rectangle");
   const [preview, setPreview] = useState(()=>buildGrid(8,6));
   const [step,    setStep]    = useState(1); // 1=config, 2=diseño
- 
+
   // rebuild preview when dims change (keep disabled pattern as much as possible)
   const applyDims = (newCols, newRows) => {
     setCols(newCols); setRows(newRows);
@@ -915,13 +970,13 @@ function SetupScreen({ onConfirm }) {
       return next;
     });
   };
- 
+
   const totalActive = preview.flat().filter(c=>c!=="__disabled__").length;
   const totalBlocked = preview.flat().filter(c=>c==="__disabled__").length;
- 
+
   const cellSize = Math.min(44, Math.floor(320 / cols));
   const isHoneycomb = shape === "honeycomb";
- 
+
   return (
     <div style={{minHeight:"100vh",
       background:"radial-gradient(ellipse at 30% 20%,#1a0800,#0a0400 60%,#000)",
@@ -933,9 +988,9 @@ function SetupScreen({ onConfirm }) {
         <p style={{color:"#7a5030",marginBottom:24,fontSize:12,letterSpacing:3}}>
           {step===1 ? "PASO 1 · DIMENSIONES Y ESTILO" : "PASO 2 · DISEÑA TU CAVA"}
         </p>
- 
+
         <div style={{background:"#11050088",border:"1px solid #3a1a00",borderRadius:16,padding:"22px 24px"}}>
- 
+
           {step===1 && (<>
             {/* Shape selector */}
             <div style={{marginBottom:20}}>
@@ -954,7 +1009,7 @@ function SetupScreen({ onConfirm }) {
                 ))}
               </div>
             </div>
- 
+
             {/* Sliders */}
             {[["Columnas (ancho)",cols,v=>applyDims(v,rows),2,16],
               ["Filas (alto)",rows,v=>applyDims(cols,v),2,12]].map(([lbl,val,setter,mn,mx])=>(
@@ -966,24 +1021,24 @@ function SetupScreen({ onConfirm }) {
                 <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"#5a3a20"}}><span>{mn}</span><span>{mx}</span></div>
               </div>
             ))}
- 
+
             <p style={{color:"#7a5030",fontSize:13,marginBottom:20}}>
               {cols}×{rows} = <strong style={{color:"#d4a853"}}>{cols*rows} celdas totales</strong>
             </p>
- 
+
             <button onClick={()=>setStep(2)}
               style={{...btnPrimary,width:"100%",padding:"13px",fontSize:15,letterSpacing:1,
                 boxShadow:"0 4px 20px #7B1D1D44"}}>
               Siguiente: diseñar forma →
             </button>
           </>)}
- 
+
           {step===2 && (<>
             <p style={{fontSize:12,color:"#9a7040",marginBottom:14,lineHeight:1.6}}>
               Toca las celdas para <strong style={{color:"#e05050"}}>bloquearlas</strong> (oscuro = sin botella).
               Usa esto para dar la forma exacta a tu cava.
             </p>
- 
+
             {/* Interactive grid preview */}
             <div style={{overflowX:"auto",marginBottom:12}}>
               <div style={{
@@ -1019,12 +1074,12 @@ function SetupScreen({ onConfirm }) {
                 }))}
               </div>
             </div>
- 
+
             <div style={{display:"flex",gap:16,justifyContent:"center",marginBottom:16,fontSize:12,color:"#6a4020"}}>
               <span>🟫 {totalActive} activas</span>
               <span>⬛ {totalBlocked} bloqueadas</span>
             </div>
- 
+
             <div style={{display:"flex",gap:8}}>
               <button onClick={()=>setStep(1)}
                 style={{...btnGhost,flex:"0 0 auto",padding:"11px 16px",fontSize:14}}>
@@ -1050,7 +1105,7 @@ function SetupScreen({ onConfirm }) {
     </div>
   );
 }
- 
+
 // ─── Main CavaApp ─────────────────────────────────────────────────────────────
 function CavaApp() {
   // auth
@@ -1063,7 +1118,7 @@ function CavaApp() {
   const [grid,       setGrid]       = useState([]);
   const [syncing,    setSyncing]    = useState(false);
   const [saveError,  setSaveError]  = useState("");
- 
+
   // ui state
   const [showAddForm,  setShowAddForm]  = useState(false);
   const [pendingCell,  setPendingCell]  = useState(null);
@@ -1080,14 +1135,14 @@ function CavaApp() {
   const touchDragRef = useRef(null);
   const importRef    = useRef(null);
   const unsubRef     = useRef(null);
- 
+
   // ── Auth listener ───────────────────────────────────────────────────────────
   useEffect(()=>{
     const { auth } = getFirebase();
     const unsub = onAuthStateChanged(auth, u=>{ setUser(u||null); });
     return ()=>unsub();
   },[]);
- 
+
   // ── Firestore listener — subscribe when user logs in ─────────────────────────
   useEffect(()=>{
     if (unsubRef.current) { unsubRef.current(); unsubRef.current=null; }
@@ -1108,7 +1163,7 @@ function CavaApp() {
     unsubRef.current = unsub;
     return ()=>unsub();
   },[user]);
- 
+
   // ── Save to Firestore ────────────────────────────────────────────────────────
   const saveToCloud = useCallback(async (state)=>{
     if (!user) return;
@@ -1121,33 +1176,33 @@ function CavaApp() {
       console.error(e);
     } finally { setSyncing(false); }
   },[user]);
- 
+
   const persistGrid = useCallback((newGrid)=>{
     setGrid(newGrid);
     saveToCloud({cols,rows,shape,grid:newGrid});
   },[cols,rows,shape,saveToCloud]);
- 
+
   // ── Highlight timeout ────────────────────────────────────────────────────────
   useEffect(()=>{
     if(!highlighted) return;
     const t=setTimeout(()=>setHighlighted(null),2500);
     return()=>clearTimeout(t);
   },[highlighted]);
- 
+
   // ── Auto-close detail if cell emptied ────────────────────────────────────────
   useEffect(()=>{
     if(!detailCell) return;
     const [r,c]=detailCell;
     if(!Array.isArray(grid[r]?.[c])||grid[r][c].length===0) setDetailCell(null);
   },[grid]);
- 
+
   // ── Setup ────────────────────────────────────────────────────────────────────
   const handleSetup = (state)=>{
     setCols(state.cols); setRows(state.rows); setShape(state.shape);
     setGrid(state.grid); setConfigured(true);
     saveToCloud(state);
   };
- 
+
   // ── Cell click ───────────────────────────────────────────────────────────────
   const handleCellClick = (r,c)=>{
     // Layout edit: toggle cell disabled
@@ -1170,7 +1225,7 @@ function CavaApp() {
     if(bottles.length===0){ setPendingCell([r,c]); setShowAddForm(true); }
     else setDetailCell([r,c]);
   };
- 
+
   // ── Add wine ─────────────────────────────────────────────────────────────────
   const handleAddWine = useCallback((w)=>{
     if(!pendingCell) return;
@@ -1181,7 +1236,7 @@ function CavaApp() {
     persistGrid(newGrid);
     setPendingCell(null);
   },[pendingCell,grid,persistGrid]);
- 
+
   // ── Edit wine ────────────────────────────────────────────────────────────────
   const handleEditWine = useCallback((updatedBottle)=>{
     if(!editTarget) return;
@@ -1191,14 +1246,14 @@ function CavaApp() {
     persistGrid(newGrid);
     setEditTarget(null);
   },[editTarget,grid,persistGrid]);
- 
+
   // ── Remove bottle ────────────────────────────────────────────────────────────
   const handleRemoveBottle = useCallback(([r,c],idx)=>{
     const newGrid=grid.map(row=>row.map(cell=>Array.isArray(cell)?[...cell]:cell));
     newGrid[r][c]=newGrid[r][c].filter((_,i)=>i!==idx);
     persistGrid(newGrid);
   },[grid,persistGrid]);
- 
+
   // ── Move bottle ──────────────────────────────────────────────────────────────
   const handleMoveBottle = useCallback((destR,destC)=>{
     if(!moveMode) return;
@@ -1211,7 +1266,7 @@ function CavaApp() {
     setHighlighted([destR,destC]);
     setMoveMode(null);
   },[moveMode,grid,persistGrid]);
- 
+
   // ── Drag & drop ──────────────────────────────────────────────────────────────
   const handleDragDrop = useCallback((destR,destC)=>{
     if(!dragSource||dragSource.r===destR&&dragSource.c===destC) return;
@@ -1225,7 +1280,7 @@ function CavaApp() {
     setHighlighted([destR,destC]);
     setDragSource(null); setDragOver(null);
   },[dragSource,grid,persistGrid]);
- 
+
   // Touch drag
   const handleTouchStartCell=(r,c,isEmpty,e)=>{
     if(isEmpty||moveMode) return;
@@ -1256,7 +1311,7 @@ function CavaApp() {
     else{setDragSource(null);setDragOver(null);}
     touchDragRef.current=null;
   };
- 
+
   // ── Export / Import ──────────────────────────────────────────────────────────
   const handleExport=()=>{
     const data=JSON.stringify({cols,rows,shape,grid},null,2);
@@ -1281,7 +1336,7 @@ function CavaApp() {
     };
     reader.readAsText(file); e.target.value="";
   };
- 
+
   // ── Derived ──────────────────────────────────────────────────────────────────
   const allBottles  = useMemo(()=>grid.flat().filter(Array.isArray).flat(),[grid]);
   const totalCeldas = useMemo(()=>grid.flat().filter(c=>c!=="__disabled__").length,[grid]);
@@ -1289,7 +1344,7 @@ function CavaApp() {
   const totalBotellas = allBottles.length;
   const totalValor    = allBottles.reduce((s,w)=>(s+(Number(w.precio)||0)*(Number(w.cantidad)||1)),0);
   const wineStats     = WINE_TYPES.map(t=>({...t,count:allBottles.filter(w=>w.tipo===t.id).length})).filter(t=>t.count>0);
- 
+
   // ── Loading ──────────────────────────────────────────────────────────────────
   if (user === undefined) return (
     <div style={{minHeight:"100vh",background:"#0a0400",display:"flex",alignItems:"center",
@@ -1297,13 +1352,13 @@ function CavaApp() {
       🍷
     </div>
   );
- 
+
   // ── Auth ─────────────────────────────────────────────────────────────────────
   if (!user) return <AuthScreen onAuth={setUser}/>;
- 
+
   // ── Setup ────────────────────────────────────────────────────────────────────
   if (!configured) return <SetupScreen onConfirm={handleSetup}/>;
- 
+
   // ── Main view ─────────────────────────────────────────────────────────────────
   return (
     <div style={{minHeight:"100vh",
@@ -1311,7 +1366,7 @@ function CavaApp() {
       fontFamily:FONT,color:"#e8d5b0",
       paddingTop:(layoutEdit||moveMode)?"80px":"22px",paddingLeft:16,paddingRight:16,paddingBottom:48,
       transition:"padding-top 0.2s"}}>
- 
+
       {/* Layout edit banner */}
       {layoutEdit&&(
         <div style={{position:"fixed",top:0,left:0,right:0,zIndex:150,
@@ -1332,7 +1387,7 @@ function CavaApp() {
           </button>
         </div>
       )}
- 
+
       {/* Move mode banner */}
       {moveMode&&(
         <div style={{position:"fixed",top:0,left:0,right:0,zIndex:150,
@@ -1355,7 +1410,7 @@ function CavaApp() {
           </button>
         </div>
       )}
- 
+
       {/* Header */}
       <div style={{textAlign:"center",marginBottom:16}}>
         <div style={{display:"flex",justifyContent:"flex-end",marginBottom:6}}>
@@ -1370,7 +1425,7 @@ function CavaApp() {
             </button>
           </div>
         </div>
- 
+
         <h1 style={{fontSize:30,fontWeight:300,letterSpacing:5,color:"#d4a853",margin:"0 0 3px"}}>MI CAVA</h1>
         <p style={{fontSize:11,color:"#6a4020",letterSpacing:2,margin:"0 0 4px"}}>
           {totalBotellas} botella{totalBotellas!==1?"s":""} · {ocupadas}/{totalCeldas} celdas · {cols}×{rows}
@@ -1381,7 +1436,7 @@ function CavaApp() {
           </p>
         )}
         {totalValor===0&&<div style={{marginBottom:12}}/>}
- 
+
         <input ref={importRef} type="file" accept=".json" onChange={handleImport} style={{display:"none"}}/>
         <div style={{display:"flex",gap:7,justifyContent:"center",flexWrap:"wrap"}}>
           {[
@@ -1410,7 +1465,7 @@ function CavaApp() {
           </button>
         </div>
       </div>
- 
+
       {/* Stats */}
       {wineStats.length>0&&(
         <div style={{display:"flex",gap:7,justifyContent:"center",flexWrap:"wrap",marginBottom:14}}>
@@ -1422,7 +1477,7 @@ function CavaApp() {
           ))}
         </div>
       )}
- 
+
       {/* Grid */}
       <div style={{display:"flex",justifyContent:"center",marginBottom:14,overflowX:"auto",padding:"4px 0"}}>
         <div style={{
@@ -1445,7 +1500,7 @@ function CavaApp() {
             const isHoneycomb=shape==="honeycomb";
             // honeycomb: odd rows shift right by half a cell width
             const hcTranslate=isHoneycomb&&r%2===1?"translateX(50%)":"";
- 
+
             let bgC=null;
             if(!isEmpty){
               const freq={};
@@ -1454,11 +1509,11 @@ function CavaApp() {
               bgC=(WINE_TYPES.find(t=>t.id===dom)||WINE_TYPES[0]).color;
             }
             const venc=!isEmpty&&bottles.some(w=>w.guardaHasta&&new Date(w.guardaHasta)<new Date());
- 
+
             // layout-edit: can this cell be toggled?
             const canToggle=layoutEdit&&(isDisabled||isEmpty);
             const cantToggle=layoutEdit&&!isDisabled&&!isEmpty;
- 
+
             let cellBorder;
             if(layoutEdit){
               if(isDisabled)  cellBorder="1px dashed #3a1060";
@@ -1473,7 +1528,7 @@ function CavaApp() {
             else if(moveMode&&!isDisabled) cellBorder=`1px dashed ${isHov?"#a080ff":"#5040a0"}`;
             else if(isEmpty)           cellBorder=`1px dashed ${isHov?"#6b3a1f":"#2a1200"}`;
             else                       cellBorder=`1px solid ${bgC}88`;
- 
+
             return (
               <div key={`${r}-${c}`}
                 data-cell-key={`${r}-${c}`}
@@ -1549,7 +1604,7 @@ function CavaApp() {
           }))}
         </div>
       </div>
- 
+
       {/* Legend */}
       <div style={{textAlign:"center",marginBottom:8}}>
         <div style={{display:"flex",gap:10,justifyContent:"center",flexWrap:"wrap",fontSize:10,color:"#5a3a20"}}>
@@ -1557,12 +1612,12 @@ function CavaApp() {
           <span>· ×N = múltiples · ⚠ = guarda vencida · ↕ = en movimiento</span>
         </div>
       </div>
- 
+
       {/* Modals */}
       {showAddForm&&(
         <WineForm onSave={handleAddWine} onClose={()=>{setShowAddForm(false);setPendingCell(null);}}/>
       )}
- 
+
       {editTarget&&(
         <WineForm
           initial={editTarget.bottle}
@@ -1570,7 +1625,7 @@ function CavaApp() {
           onClose={()=>setEditTarget(null)}
         />
       )}
- 
+
       {detailCell&&Array.isArray(grid[detailCell[0]]?.[detailCell[1]])&&grid[detailCell[0]][detailCell[1]].length>0&&(
         <CellDetail
           bottles={grid[detailCell[0]][detailCell[1]]}
@@ -1582,7 +1637,7 @@ function CavaApp() {
           onClose={()=>setDetailCell(null)}
         />
       )}
- 
+
       {showSearch&&(
         <SearchPanel
           grid={grid}
@@ -1591,7 +1646,7 @@ function CavaApp() {
           onClose={()=>setShowSearch(false)}
         />
       )}
- 
+
       {showList&&(
         <ListView
           grid={grid}
@@ -1604,7 +1659,7 @@ function CavaApp() {
     </div>
   );
 }
- 
+
     // ── Mount React ──────────────────────────────────────────────────────────
     const _root = ReactDOM.createRoot(document.getElementById("root"));
     _root.render(React.createElement(CavaApp));
@@ -1612,7 +1667,7 @@ function CavaApp() {
     _splash.classList.add("hidden");
     setTimeout(() => { if (_splash.parentNode) _splash.parentNode.removeChild(_splash); }, 600);
   </script>
- 
+
   <script>
     // Service Worker
     if ("serviceWorker" in navigator) {
