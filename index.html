@@ -1160,12 +1160,15 @@ function CavaApp() {
   },[user]);
 
   const saveToCloud = useCallback(async (state)=>{
-    if (!user) return;
+    if (!user) { console.warn("saveToCloud: no user"); return; }
+    if (!state.cols || !state.rows || !state.grid) {
+      console.error("saveToCloud: invalid state", state); return;
+    }
     const payload = stateToDoc(state);
     if (!payload) { setSaveError("Error al serializar los datos."); return; }
     setSyncing(true); setSaveError("");
     try {
-      console.log("Saving to Firestore uid:", user.uid, "cols:", state.cols, "rows:", state.rows);
+      console.log("Saving to Firestore:", user.uid, `${state.cols}x${state.rows}`, "bottles:", state.grid.flat().filter(Array.isArray).flat().length);
       await fbSave(user.uid, payload);
       console.log("Firestore save OK");
     } catch(e) {
@@ -1180,10 +1183,27 @@ function CavaApp() {
     } finally { setSyncing(false); }
   }, [user]);
 
-  const persistGrid = useCallback((newGrid)=>{
+  // ── Refs to always have fresh state in callbacks ─────────────────────────────
+  // This avoids stale closure bugs where cols/rows/shape are outdated.
+  const colsRef  = useRef(cols);
+  const rowsRef  = useRef(rows);
+  const shapeRef = useRef(shape);
+  const gridRef  = useRef(grid);
+  useEffect(() => { colsRef.current  = cols;  }, [cols]);
+  useEffect(() => { rowsRef.current  = rows;  }, [rows]);
+  useEffect(() => { shapeRef.current = shape; }, [shape]);
+  useEffect(() => { gridRef.current  = grid;  }, [grid]);
+
+  // persistGrid: always uses fresh state from refs
+  const persistGrid = useCallback((newGrid) => {
     setGrid(newGrid);
-    saveToCloud({cols,rows,shape,grid:newGrid});
-  },[cols,rows,shape,saveToCloud]);
+    saveToCloud({
+      cols:  colsRef.current,
+      rows:  rowsRef.current,
+      shape: shapeRef.current,
+      grid:  newGrid,
+    });
+  }, [saveToCloud]);
 
   // ── Highlight timeout ────────────────────────────────────────────────────────
   useEffect(()=>{
@@ -1200,9 +1220,18 @@ function CavaApp() {
   },[grid]);
 
   // ── Setup ────────────────────────────────────────────────────────────────────
-  const handleSetup = (state)=>{
-    setCols(state.cols); setRows(state.rows); setShape(state.shape);
-    setGrid(state.grid); setConfigured(true);
+  const handleSetup = (state) => {
+    // Update refs immediately so saveToCloud gets fresh values
+    colsRef.current  = state.cols;
+    rowsRef.current  = state.rows;
+    shapeRef.current = state.shape;
+    gridRef.current  = state.grid;
+    setCols(state.cols);
+    setRows(state.rows);
+    setShape(state.shape);
+    setGrid(state.grid);
+    setConfigured(true);
+    // Save with explicit values — no stale closure
     saveToCloud(state);
   };
 
@@ -1491,7 +1520,15 @@ function CavaApp() {
               cursor:"pointer",fontSize:13,fontFamily:FONT}}>
             {layoutEdit?"✓ Editando forma":"⬡ Forma"}
           </button>
-          <button onClick={()=>{const ok=window.confirm("¿Reconfigurar la cava? Se perderán todos los vinos.");if(ok){setConfigured(false);setGrid([]);saveToCloud({cols,rows,shape,grid:[]}).then(()=>setConfigured(false));}}}
+          <button onClick={()=>{
+            const ok=window.confirm("¿Reconfigurar la cava? Se perderán todos los vinos.");
+            if(ok){
+              const emptyState={cols:colsRef.current,rows:rowsRef.current,shape:shapeRef.current,grid:[]};
+              saveToCloud(emptyState);
+              setConfigured(false);
+              setGrid([]);
+            }
+          }}
             style={{background:"transparent",border:"1px solid #3a1800",borderRadius:8,
               padding:"7px 13px",color:"#5a3a20",cursor:"pointer",fontSize:15,fontFamily:FONT}}>
             ⚙
