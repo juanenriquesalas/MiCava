@@ -63,36 +63,22 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 
-  <!-- Bridge: expone la API modular que usa app.js via el SDK compat -->
+  <!-- Firebase init — expone FB como objeto global directo, sin bridge complejo -->
   <script>
-    window.firebaseApp = {
-      initializeApp: (cfg) => firebase.initializeApp(cfg),
-      getApps: () => firebase.apps,
+    const _fbConfig = {
+      apiKey:            "AIzaSyC6LYgKefzh1-PB2YMfsVj7uNFX4IE5uyI",
+      authDomain:        "micavapp.firebaseapp.com",
+      projectId:         "micavapp",
+      storageBucket:     "micavapp.firebasestorage.app",
+      messagingSenderId: "176713824457",
+      appId:             "1:176713824457:web:ebc1ae114e7737fcb6b518",
     };
-    window.firebaseAuth = {
-      getAuth:                        (app) => app.auth(),
-      onAuthStateChanged:             (auth, cb) => auth.onAuthStateChanged(cb),
-      signInWithEmailAndPassword:     (auth, e, p) => auth.signInWithEmailAndPassword(e, p),
-      createUserWithEmailAndPassword: (auth, e, p) => auth.createUserWithEmailAndPassword(e, p),
-      signOut:                        (auth) => auth.signOut(),
-      updateProfile:                  (user, data) => user.updateProfile(data),
-      sendPasswordResetEmail:         (auth, email) => auth.sendPasswordResetEmail(email),
-      signInWithGoogle: (auth) => {
-        const provider = new firebase.auth.GoogleAuthProvider();
-        return auth.signInWithPopup(provider);
-      },
-      signInWithFacebook: (auth) => {
-        const provider = new firebase.auth.FacebookAuthProvider();
-        return auth.signInWithPopup(provider);
-      },
-    };
-    window.firebaseFirestore = {
-      getFirestore: (app) => app.firestore(),
-      doc:          (db, col, id) => db.collection(col).doc(id),
-      getDoc:       (ref) => ref.get(),
-      setDoc:       (ref, data) => ref.set(data),
-      onSnapshot:   (ref, cb, errCb) => ref.onSnapshot(cb, errCb),
-    };
+    // Init once
+    if (!firebase.apps.length) firebase.initializeApp(_fbConfig);
+    // Expose direct references — no bridge, no wrapper
+    window.FB_AUTH = firebase.auth();
+    window.FB_DB   = firebase.firestore();
+    console.log("Firebase initialized. Project:", _fbConfig.projectId);
   </script>
 
   <!-- Babel Standalone -->
@@ -105,51 +91,24 @@ const { useState, useEffect, useRef, useCallback, useMemo } = React;
 // ─── Firebase config ──────────────────────────────────────────────────────────
 // ▶ REEMPLAZA estos valores con los de tu proyecto Firebase
 // (Firebase Console → Project Settings → Your apps → SDK setup → Config)
-const FIREBASE_CONFIG = {
-  apiKey:            "AIzaSyC6LYgKefzh1-PB2YMfsVj7uNFX4IE5uyI",
-  authDomain:        "micavapp.firebaseapp.com",
-  projectId:         "micavapp",
-  storageBucket:     "micavapp.firebasestorage.app",
-  messagingSenderId: "176713824457",
-  appId:             "1:176713824457:web:ebc1ae114e7737fcb6b518",
-};
+// ─── Firebase — acceso directo via window.FB_AUTH y window.FB_DB ─────────────
+// (inicializado en el bloque <script> antes de Babel)
 
-// ─── Firebase SDK (cargado desde CDN en index.html) ───────────────────────────
-const {
-  initializeApp,
-  getApps,
-} = window.firebaseApp || {};
+const FIREBASE_CONFIG = {}; // ya inicializado en el HTML, no se usa aquí
 
-const {
-  getAuth,
-  onAuthStateChanged,
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  signOut,
-  updateProfile,
-  sendPasswordResetEmail,
-  signInWithGoogle,
-  signInWithFacebook,
-} = window.firebaseAuth || {};
+// Helpers directos — sin wrappers ni bridges
+const fbSignIn      = (e,p)  => window.FB_AUTH.signInWithEmailAndPassword(e,p);
+const fbRegister    = (e,p)  => window.FB_AUTH.createUserWithEmailAndPassword(e,p);
+const fbSignOut     = ()     => window.FB_AUTH.signOut();
+const fbUpdateProfile=(u,d)  => u.updateProfile(d);
+const fbResetPwd    = (e)    => window.FB_AUTH.sendPasswordResetEmail(e);
+const fbGoogleLogin = ()     => window.FB_AUTH.signInWithPopup(new firebase.auth.GoogleAuthProvider());
+const fbFbLogin     = ()     => window.FB_AUTH.signInWithPopup(new firebase.auth.FacebookAuthProvider());
+const fbOnAuth      = (cb)   => window.FB_AUTH.onAuthStateChanged(cb);
 
-const {
-  getFirestore,
-  doc,
-  getDoc,
-  setDoc,
-  onSnapshot,
-} = window.firebaseFirestore || {};
-
-// Init Firebase once
-let _app, _auth, _db;
-function getFirebase() {
-  if (!_app) {
-    _app  = (getApps && getApps().length) ? getApps()[0] : initializeApp(FIREBASE_CONFIG);
-    _auth = getAuth(_app);
-    _db   = getFirestore(_app);
-  }
-  return { auth: _auth, db: _db };
-}
+const fbDocRef      = (uid)  => window.FB_DB.collection("cavas").doc(uid);
+const fbSave        = (uid, data) => fbDocRef(uid).set(data);
+const fbListen      = (uid, onNext, onErr) => fbDocRef(uid).onSnapshot(onNext, onErr);
 
 // ─── constants ────────────────────────────────────────────────────────────────
 const WINE_TYPES = [
@@ -302,16 +261,14 @@ function AuthScreen({ onAuth }) {
   const signInSocial = async (provider) => {
     setError(""); setBusy(true);
     try {
-      const { auth } = getFirebase();
-      const fn = provider === "google" ? signInWithGoogle : signInWithFacebook;
-      const cred = await fn(auth);
+      const cred = provider === "google" ? await fbGoogleLogin() : await fbFbLogin();
       onAuth(cred.user);
     } catch(e) {
       const msgs = {
         "auth/popup-closed-by-user":    "Cerraste la ventana antes de completar el acceso.",
         "auth/popup-blocked":           "El navegador bloqueó la ventana emergente. Permite popups para este sitio.",
         "auth/account-exists-with-different-credential":
-          "Ya existe una cuenta con ese email usando otro método. Inicia sesión con el método original.",
+          "Ya existe una cuenta con ese email usando otro método.",
         "auth/cancelled-popup-request": "",
       };
       const msg = msgs[e.code];
@@ -322,22 +279,18 @@ function AuthScreen({ onAuth }) {
   const submit = async () => {
     setError(""); setInfo(""); setBusy(true);
     try {
-      const { auth } = getFirebase();
-
       if (mode === "reset") {
         if (!email.trim()) { setError("Ingresa tu email."); setBusy(false); return; }
-        await sendPasswordResetEmail(auth, email.trim());
+        await fbResetPwd(email.trim());
         setInfo("Te enviamos un email con el enlace para restablecer tu contraseña. Revisa también la carpeta de spam.");
-        setBusy(false);
-        return;
+        setBusy(false); return;
       }
-
       if (mode === "register") {
-        const cred = await createUserWithEmailAndPassword(auth, email.trim(), pass);
-        await updateProfile(cred.user, { displayName: name.trim() || email.trim() });
+        const cred = await fbRegister(email.trim(), pass);
+        await fbUpdateProfile(cred.user, { displayName: name.trim() || email.trim() });
         onAuth(cred.user);
       } else {
-        const cred = await signInWithEmailAndPassword(auth, email.trim(), pass);
+        const cred = await fbSignIn(email.trim(), pass);
         onAuth(cred.user);
       }
     } catch(e) {
@@ -348,7 +301,7 @@ function AuthScreen({ onAuth }) {
         "auth/weak-password":        "La contraseña debe tener al menos 6 caracteres.",
         "auth/invalid-email":        "Email inválido.",
         "auth/invalid-credential":   "Email o contraseña incorrectos.",
-        "auth/too-many-requests":    "Demasiados intentos. Espera unos minutos o restablece tu contraseña.",
+        "auth/too-many-requests":    "Demasiados intentos. Espera o restablece tu contraseña.",
       };
       setError(msgs[e.code] || e.message);
     } finally { setBusy(false); }
@@ -1170,35 +1123,40 @@ function CavaApp() {
 
   // ── Auth listener ───────────────────────────────────────────────────────────
   useEffect(()=>{
-    const { auth } = getFirebase();
-    const unsub = onAuthStateChanged(auth, u=>{ setUser(u||null); });
-    return ()=>unsub();
+    const unsub = fbOnAuth(u => setUser(u || null));
+    return () => unsub();
   },[]);
 
   // ── Firestore listener — subscribe when user logs in ─────────────────────────
   useEffect(()=>{
-    if (unsubRef.current) { unsubRef.current(); unsubRef.current=null; }
-    if (!user) {
-      setConfigured(false); setGrid([]); return;
-    }
-    const { db } = getFirebase();
-    const ref = doc(db, "cavas", user.uid);
-    const unsub = onSnapshot(ref, snap=>{
-      if (snap.exists()) {
-        const parsed = docToState(snap.data());
-        if (parsed && parsed.cols && parsed.rows && parsed.grid) {
-          setCols(parsed.cols);
-          setRows(parsed.rows);
-          setShape(parsed.shape || "rectangle");
-          setGrid(parsed.grid);
-          setConfigured(true);
+    if (unsubRef.current) { unsubRef.current(); unsubRef.current = null; }
+    if (!user) { setConfigured(false); setGrid([]); return; }
+
+    const unsub = fbListen(
+      user.uid,
+      snap => {
+        console.log("Firestore snap:", snap.exists() ? "EXISTS" : "EMPTY");
+        if (snap.exists()) {
+          const parsed = docToState(snap.data());
+          console.log("Parsed state:", parsed ? `${parsed.cols}x${parsed.rows}` : "null");
+          if (parsed && parsed.cols && parsed.rows && parsed.grid) {
+            setCols(parsed.cols);
+            setRows(parsed.rows);
+            setShape(parsed.shape || "rectangle");
+            setGrid(parsed.grid);
+            setConfigured(true);
+          }
+        } else {
+          setConfigured(false); setGrid([]);
         }
-      } else {
-        setConfigured(false); setGrid([]);
+      },
+      err => {
+        console.error("Firestore listen error:", err.code, err.message);
+        setSaveError(`Error al leer: ${err.code || err.message}`);
       }
-    }, err=>{ console.error("Firestore onSnapshot error:", err); });
+    );
     unsubRef.current = unsub;
-    return ()=>unsub();
+    return () => unsub();
   },[user]);
 
   const saveToCloud = useCallback(async (state)=>{
@@ -1207,8 +1165,9 @@ function CavaApp() {
     if (!payload) { setSaveError("Error al serializar los datos."); return; }
     setSyncing(true); setSaveError("");
     try {
-      const { db } = getFirebase();
-      await setDoc(doc(db, "cavas", user.uid), payload);
+      console.log("Saving to Firestore uid:", user.uid, "cols:", state.cols, "rows:", state.rows);
+      await fbSave(user.uid, payload);
+      console.log("Firestore save OK");
     } catch(e) {
       console.error("Firestore save error:", e.code, e.message);
       const msgs = {
@@ -1385,8 +1344,7 @@ function CavaApp() {
           try {
             const payload = stateToDoc(state);
             if (!payload) throw new Error("Serialización fallida");
-            const { db } = getFirebase();
-            await setDoc(doc(db,"cavas",user.uid), payload);
+            await fbSave(user.uid, payload);
             // Update local state only after confirmed cloud save
             setCols(iCols); setRows(iRows); setShape(iShape);
             setGrid(iGrid); setConfigured(true);
@@ -1493,7 +1451,7 @@ function CavaApp() {
               </span>
             )}
             <span>👤 {user.displayName||user.email}</span>
-            <button onClick={()=>signOut(getFirebase().auth)}
+            <button onClick={()=>fbSignOut()}
               style={{background:"transparent",border:"1px solid #3a1800",borderRadius:6,
                 padding:"3px 10px",color:"#5a3a20",cursor:"pointer",fontFamily:FONT,fontSize:11}}>
               Salir
