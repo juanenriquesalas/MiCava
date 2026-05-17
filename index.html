@@ -75,20 +75,12 @@
     };
     // Init once
     if (!firebase.apps.length) firebase.initializeApp(_fbConfig);
-    // Expose direct references — no bridge, no wrapper
+    // Expose direct references
     window.FB_AUTH = firebase.auth();
     window.FB_DB   = firebase.firestore();
-    // Enable offline persistence (caches data locally, snapshots fire immediately from cache)
-    window.FB_DB.enablePersistence({ synchronizeTabs: true })
-      .then(() => console.log("Firestore offline persistence enabled"))
-      .catch(err => {
-        if (err.code === 'failed-precondition') {
-          console.warn("Persistence unavailable: multiple tabs open");
-        } else if (err.code === 'unimplemented') {
-          console.warn("Persistence not supported in this browser");
-        }
-      });
-    console.log("Firebase initialized. Project:", _fbConfig.projectId);
+    // Force long-polling — more reliable than WebSocket on mobile/GitHub Pages
+    window.FB_DB.settings({ experimentalForceLongPolling: true, merge: true });
+    console.log("Firebase initialized:", _fbConfig.projectId);
   </script>
 
   <!-- Babel Standalone -->
@@ -1160,13 +1152,30 @@ function CavaApp() {
     setCavaLoading(true);
     console.log("Subscribing to Firestore for uid:", user.uid);
 
-    // Safety timeout: if Firestore takes >8s, stop loading and go to Setup
-    // (prevents infinite loading screen on network issues or Firestore problems)
-    const timeout = setTimeout(() => {
-      console.warn("Firestore timeout — no snapshot received after 8s. Going to Setup.");
+    // Safety timeout: if Firestore takes >5s, try a direct get() as fallback
+    const timeout = setTimeout(async () => {
+      console.warn("Firestore onSnapshot timeout — trying direct get() as fallback");
+      try {
+        const ref = fbDocRef(user.uid);
+        if (!ref) throw new Error("No ref");
+        const snap = await ref.get();
+        if (snap.exists()) {
+          const parsed = docToState(snap.data());
+          if (parsed && parsed.cols && parsed.rows && parsed.grid) {
+            setCols(parsed.cols); setRows(parsed.rows);
+            setShape(parsed.shape || "rectangle");
+            setGrid(parsed.grid); setConfigured(true);
+            setCavaLoading(false);
+            return;
+          }
+        }
+      } catch(e) {
+        console.error("Fallback get() failed:", e.message);
+      }
+      // If get() also fails, go to Setup
       setCavaLoading(false);
       setConfigured(false);
-    }, 8000);
+    }, 5000);
 
     const unsub = fbListen(
       user.uid,
@@ -1469,7 +1478,26 @@ function CavaApp() {
       <div style={{fontSize:13,letterSpacing:3,color:"#7a5030"}}>CARGANDO TU CAVA…</div>
       <div style={{fontSize:11,color:"#4a2800",marginTop:4}}>Conectando con Firebase…</div>
       <button
-        onClick={()=>{ setCavaLoading(false); setConfigured(false); }}
+        onClick={async ()=>{
+          // Try a direct one-time read before giving up
+          try {
+            const ref = fbDocRef(user.uid);
+            if (ref) {
+              const snap = await ref.get();
+              if (snap.exists()) {
+                const parsed = docToState(snap.data());
+                if (parsed && parsed.cols && parsed.rows && parsed.grid) {
+                  setCols(parsed.cols); setRows(parsed.rows);
+                  setShape(parsed.shape || "rectangle");
+                  setGrid(parsed.grid); setConfigured(true);
+                  setCavaLoading(false);
+                  return;
+                }
+              }
+            }
+          } catch(e) { console.error("Manual get() failed:", e.message); }
+          setCavaLoading(false); setConfigured(false);
+        }}
         style={{marginTop:20,background:"transparent",border:"1px solid #3a1800",
           borderRadius:8,padding:"8px 20px",color:"#5a3a20",cursor:"pointer",
           fontSize:12,fontFamily:FONT,letterSpacing:1}}>
