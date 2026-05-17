@@ -1097,6 +1097,7 @@ function CavaApp() {
   const [user,       setUser]       = useState(undefined); // undefined = loading
   // cava state (synced from Firestore)
   const [configured, setConfigured] = useState(false);
+  const [cavaLoading, setCavaLoading] = useState(false); // true while waiting for first Firestore snapshot
   const [cols,       setCols]       = useState(8);
   const [rows,       setRows]       = useState(6);
   const [shape,      setShape]      = useState("rectangle");
@@ -1130,7 +1131,12 @@ function CavaApp() {
   // ── Firestore listener — subscribe when user logs in ─────────────────────────
   useEffect(()=>{
     if (unsubRef.current) { unsubRef.current(); unsubRef.current = null; }
-    if (!user) { setConfigured(false); setGrid([]); return; }
+    if (!user) {
+      setConfigured(false); setGrid([]); setCavaLoading(false);
+      return;
+    }
+    // Mark loading until first snapshot arrives
+    setCavaLoading(true);
 
     const unsub = fbListen(
       user.uid,
@@ -1145,14 +1151,20 @@ function CavaApp() {
             setShape(parsed.shape || "rectangle");
             setGrid(parsed.grid);
             setConfigured(true);
+          } else {
+            // Document exists but malformed — treat as no cava
+            setConfigured(false);
+            setGrid([]);
           }
         } else {
           setConfigured(false); setGrid([]);
         }
+        setCavaLoading(false); // First snapshot received — stop loading
       },
       err => {
         console.error("Firestore listen error:", err.code, err.message);
         setSaveError(`Error al leer: ${err.code || err.message}`);
+        setCavaLoading(false); // Stop loading even on error
       }
     );
     unsubRef.current = unsub;
@@ -1411,6 +1423,18 @@ function CavaApp() {
 
   // ── Auth ─────────────────────────────────────────────────────────────────────
   if (!user) return <AuthScreen onAuth={setUser}/>;
+
+  // ── Cava loading: waiting for first Firestore snapshot ──────────────────────
+  // This prevents flashing the Setup screen for returning users while data loads.
+  if (cavaLoading) return (
+    <div style={{minHeight:"100vh",
+      background:"radial-gradient(ellipse at 30% 20%,#1a0800,#0a0400 60%,#000)",
+      display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
+      fontFamily:FONT,color:"#d4a853"}}>
+      <div style={{fontSize:48,animation:"pulse 1.5s ease-in-out infinite"}}>🍷</div>
+      <div style={{fontSize:13,letterSpacing:3,color:"#7a5030",marginTop:14}}>CARGANDO TU CAVA…</div>
+    </div>
+  );
 
   // ── Setup ────────────────────────────────────────────────────────────────────
   if (!configured) return <SetupScreen onConfirm={handleSetup}/>;
