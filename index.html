@@ -78,6 +78,16 @@
     // Expose direct references — no bridge, no wrapper
     window.FB_AUTH = firebase.auth();
     window.FB_DB   = firebase.firestore();
+    // Enable offline persistence (caches data locally, snapshots fire immediately from cache)
+    window.FB_DB.enablePersistence({ synchronizeTabs: true })
+      .then(() => console.log("Firestore offline persistence enabled"))
+      .catch(err => {
+        if (err.code === 'failed-precondition') {
+          console.warn("Persistence unavailable: multiple tabs open");
+        } else if (err.code === 'unimplemented') {
+          console.warn("Persistence not supported in this browser");
+        }
+      });
     console.log("Firebase initialized. Project:", _fbConfig.projectId);
   </script>
 
@@ -106,9 +116,20 @@ const fbGoogleLogin = ()     => window.FB_AUTH.signInWithPopup(new firebase.auth
 const fbFbLogin     = ()     => window.FB_AUTH.signInWithPopup(new firebase.auth.FacebookAuthProvider());
 const fbOnAuth      = (cb)   => window.FB_AUTH.onAuthStateChanged(cb);
 
-const fbDocRef      = (uid)  => window.FB_DB.collection("cavas").doc(uid);
-const fbSave        = (uid, data) => fbDocRef(uid).set(data);
-const fbListen      = (uid, onNext, onErr) => fbDocRef(uid).onSnapshot(onNext, onErr);
+const fbDocRef = (uid) => {
+  if (!window.FB_DB) { console.error("FB_DB not initialized!"); return null; }
+  return window.FB_DB.collection("cavas").doc(uid);
+};
+const fbSave   = (uid, data) => {
+  const ref = fbDocRef(uid);
+  if (!ref) return Promise.reject(new Error("FB_DB not initialized"));
+  return ref.set(data);
+};
+const fbListen = (uid, onNext, onErr) => {
+  const ref = fbDocRef(uid);
+  if (!ref) { onErr(new Error("FB_DB not initialized")); return ()=>{}; }
+  return ref.onSnapshot(onNext, onErr);
+};
 
 // ─── constants ────────────────────────────────────────────────────────────────
 const WINE_TYPES = [
@@ -1137,14 +1158,26 @@ function CavaApp() {
     }
     // Mark loading until first snapshot arrives
     setCavaLoading(true);
+    console.log("Subscribing to Firestore for uid:", user.uid);
+
+    // Safety timeout: if Firestore takes >8s, stop loading and go to Setup
+    // (prevents infinite loading screen on network issues or Firestore problems)
+    const timeout = setTimeout(() => {
+      console.warn("Firestore timeout — no snapshot received after 8s. Going to Setup.");
+      setCavaLoading(false);
+      setConfigured(false);
+    }, 8000);
 
     const unsub = fbListen(
       user.uid,
       snap => {
-        console.log("Firestore snap:", snap.exists() ? "EXISTS" : "EMPTY");
+        clearTimeout(timeout);
+        console.log("Firestore snap received:", snap.exists() ? "EXISTS" : "EMPTY", "uid:", user.uid);
         if (snap.exists()) {
-          const parsed = docToState(snap.data());
-          console.log("Parsed state:", parsed ? `${parsed.cols}x${parsed.rows}` : "null");
+          const raw = snap.data();
+          console.log("Raw doc keys:", Object.keys(raw));
+          const parsed = docToState(raw);
+          console.log("Parsed state:", parsed ? `${parsed.cols}x${parsed.rows}, bottles: ${parsed.grid ? parsed.grid.flat().filter(Array.isArray).flat().length : 0}` : "null");
           if (parsed && parsed.cols && parsed.rows && parsed.grid) {
             setCols(parsed.cols);
             setRows(parsed.rows);
@@ -1152,23 +1185,25 @@ function CavaApp() {
             setGrid(parsed.grid);
             setConfigured(true);
           } else {
-            // Document exists but malformed — treat as no cava
+            console.warn("Parsed state invalid, going to Setup");
             setConfigured(false);
             setGrid([]);
           }
         } else {
+          console.log("No document in Firestore — new user, going to Setup");
           setConfigured(false); setGrid([]);
         }
-        setCavaLoading(false); // First snapshot received — stop loading
+        setCavaLoading(false);
       },
       err => {
+        clearTimeout(timeout);
         console.error("Firestore listen error:", err.code, err.message);
         setSaveError(`Error al leer: ${err.code || err.message}`);
-        setCavaLoading(false); // Stop loading even on error
+        setCavaLoading(false);
       }
     );
     unsubRef.current = unsub;
-    return () => unsub();
+    return () => { unsub(); clearTimeout(timeout); };
   },[user]);
 
   const saveToCloud = useCallback(async (state)=>{
@@ -1425,14 +1460,21 @@ function CavaApp() {
   if (!user) return <AuthScreen onAuth={setUser}/>;
 
   // ── Cava loading: waiting for first Firestore snapshot ──────────────────────
-  // This prevents flashing the Setup screen for returning users while data loads.
   if (cavaLoading) return (
     <div style={{minHeight:"100vh",
       background:"radial-gradient(ellipse at 30% 20%,#1a0800,#0a0400 60%,#000)",
       display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
-      fontFamily:FONT,color:"#d4a853"}}>
+      fontFamily:FONT,color:"#d4a853",gap:16}}>
       <div style={{fontSize:48,animation:"pulse 1.5s ease-in-out infinite"}}>🍷</div>
-      <div style={{fontSize:13,letterSpacing:3,color:"#7a5030",marginTop:14}}>CARGANDO TU CAVA…</div>
+      <div style={{fontSize:13,letterSpacing:3,color:"#7a5030"}}>CARGANDO TU CAVA…</div>
+      <div style={{fontSize:11,color:"#4a2800",marginTop:4}}>Conectando con Firebase…</div>
+      <button
+        onClick={()=>{ setCavaLoading(false); setConfigured(false); }}
+        style={{marginTop:20,background:"transparent",border:"1px solid #3a1800",
+          borderRadius:8,padding:"8px 20px",color:"#5a3a20",cursor:"pointer",
+          fontSize:12,fontFamily:FONT,letterSpacing:1}}>
+        Si esto tarda mucho, toca aquí →
+      </button>
     </div>
   );
 
