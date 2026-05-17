@@ -78,8 +78,6 @@
     // Expose direct references
     window.FB_AUTH = firebase.auth();
     window.FB_DB   = firebase.firestore();
-    // Force long-polling — more reliable than WebSocket on mobile/GitHub Pages
-    window.FB_DB.settings({ experimentalForceLongPolling: true, merge: true });
     console.log("Firebase initialized:", _fbConfig.projectId);
   </script>
 
@@ -1159,7 +1157,7 @@ function CavaApp() {
         const ref = fbDocRef(user.uid);
         if (!ref) throw new Error("No ref");
         const snap = await ref.get();
-        if (snap.exists()) {
+        if (snap.exists) {
           const parsed = docToState(snap.data());
           if (parsed && parsed.cols && parsed.rows && parsed.grid) {
             setCols(parsed.cols); setRows(parsed.rows);
@@ -1181,8 +1179,8 @@ function CavaApp() {
       user.uid,
       snap => {
         clearTimeout(timeout);
-        console.log("Firestore snap received:", snap.exists() ? "EXISTS" : "EMPTY", "uid:", user.uid);
-        if (snap.exists()) {
+        console.log("Firestore snap received:", snap.exists ? "EXISTS" : "EMPTY", "uid:", user.uid);
+        if (snap.exists) {
           const raw = snap.data();
           console.log("Raw doc keys:", Object.keys(raw));
           const parsed = docToState(raw);
@@ -1484,7 +1482,7 @@ function CavaApp() {
             const ref = fbDocRef(user.uid);
             if (ref) {
               const snap = await ref.get();
-              if (snap.exists()) {
+              if (snap.exists) {
                 const parsed = docToState(snap.data());
                 if (parsed && parsed.cols && parsed.rows && parsed.grid) {
                   setCols(parsed.cols); setRows(parsed.rows);
