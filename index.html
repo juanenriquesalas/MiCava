@@ -332,7 +332,7 @@ function TagInput({ tags=[], onChange }) {
       <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:8}}>
         {tags.map(t=>(
           <span key={t} style={{background:T.gridBorder,border:"1px solid #5a3000",
-            borderRadius:20,padding:"3px 10px",fontSize:12,color:"#c8a880",
+            borderRadius:20,padding:"3px 10px",fontSize:12,color:T.textSub,
             display:"flex",alignItems:"center",gap:5}}>
             {t}
             <span onClick={()=>onChange(tags.filter(x=>x!==t))}
@@ -493,7 +493,7 @@ function AuthScreen({ onAuth }) {
           {mode==="login" && !error && !info && (
             <div style={{textAlign:"right",marginBottom:16}}>
               <button onClick={()=>switchMode("reset")}
-                style={{background:"transparent",border:"none",color:"#7a5030",
+                style={{background:"transparent",border:"none",color:T.textSub,
                   cursor:"pointer",fontSize:12,fontFamily:FONT,textDecoration:"underline"}}>
                 Olvidé mi contraseña
               </button>
@@ -502,15 +502,15 @@ function AuthScreen({ onAuth }) {
 
           {/* Mensaje de error */}
           {error && (
-            <div style={{background:"#3a0a0a",border:"1px solid #7B1D1D",borderRadius:8,
-              padding:"8px 12px",marginBottom:16,fontSize:13,color:"#e08080",textAlign:"left"}}>
+            <div style={{background:T.isDark?"#3a0a0a":"#fde8e8",border:"1px solid #7B1D1D",borderRadius:8,
+              padding:"8px 12px",marginBottom:16,fontSize:13,color:T.error,textAlign:"left"}}>
               {error}
             </div>
           )}
 
           {/* Mensaje de éxito (reset enviado) */}
           {info && (
-            <div style={{background:"#0a2a0a",border:"1px solid #2a5a2a",borderRadius:8,
+            <div style={{background:T.isDark?"#0a2a0a":"#e8f5e8",border:"1px solid #2a5a2a",borderRadius:8,
               padding:"10px 12px",marginBottom:16,fontSize:13,color:T.green,textAlign:"left",lineHeight:1.5}}>
               ✅ {info}
             </div>
@@ -529,21 +529,21 @@ function AuthScreen({ onAuth }) {
           <div style={{marginTop:14,display:"flex",flexDirection:"column",gap:8}}>
             {mode==="login" && (
               <button onClick={()=>switchMode("register")}
-                style={{background:"transparent",border:"none",color:"#7a5030",
+                style={{background:"transparent",border:"none",color:T.textSub,
                   cursor:"pointer",fontSize:13,fontFamily:FONT}}>
                 ¿No tienes cuenta? Regístrate
               </button>
             )}
             {mode==="register" && (
               <button onClick={()=>switchMode("login")}
-                style={{background:"transparent",border:"none",color:"#7a5030",
+                style={{background:"transparent",border:"none",color:T.textSub,
                   cursor:"pointer",fontSize:13,fontFamily:FONT}}>
                 ¿Ya tienes cuenta? Inicia sesión
               </button>
             )}
             {mode==="reset" && (
               <button onClick={()=>switchMode("login")}
-                style={{background:"transparent",border:"none",color:"#7a5030",
+                style={{background:"transparent",border:"none",color:T.textSub,
                   cursor:"pointer",fontSize:13,fontFamily:FONT}}>
                 ← Volver al inicio de sesión
               </button>
@@ -625,7 +625,7 @@ function WineForm({ onSave, onClose, initial=null }) {
         <div style={{marginBottom:12}}>
           <label style={lS()}>
             Cepa / Varietal
-            {form.cepas.length>1&&<span style={{color:"#c8a0e8",marginLeft:6,fontSize:10,letterSpacing:1}}>ENSAMBLAJE</span>}
+            {form.cepas.length>1&&<span style={{color:T.isDark?"#c8a0e8":"#7a4a9a",marginLeft:6,fontSize:10,letterSpacing:1}}>ENSAMBLAJE</span>}
           </label>
           <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>
             {cepas.map(c=>{
@@ -641,7 +641,7 @@ function WineForm({ onSave, onClose, initial=null }) {
               placeholder="Especifica la cepa…" style={{...iS(),marginTop:8,fontSize:13}}/>
           )}
           {form.cepas.filter(c=>c!=="Otra"&&c!=="Otro").length>1&&(
-            <div style={{marginTop:6,fontSize:11,color:"#c8a0e8"}}>
+            <div style={{marginTop:6,fontSize:11,color:T.isDark?"#c8a0e8":"#7a4a9a"}}>
               Ensamblaje: {form.cepas.filter(c=>c!=="Otra"&&c!=="Otro").join(" + ")}{form.cepaCustom?" + "+form.cepaCustom:""}
             </div>
           )}
@@ -656,7 +656,7 @@ function WineForm({ onSave, onClose, initial=null }) {
               return (
                 <button key={m.id}
                   onClick={()=>set("maridajes",active?form.maridajes.filter(x=>x!==m.id):[...form.maridajes,m.id])}
-                  style={pill("#2a4a2a",active)}>{m.emoji} {m.label}</button>
+                  style={pill(T.isDark?"#2a4a2a":"#e8f4e8",active)}>{m.emoji} {m.label}</button>
               );
             })}
           </div>
@@ -750,14 +750,14 @@ function WineCard({ w, onRetire, onEdit, compact=false }) {
           <div style={{fontWeight:600,fontSize:compact?15:17,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{w.nombre}</div>
           {w.bodega&&<div style={{fontSize:13,color:T.accent}}>{w.bodega}</div>}
           <div style={{display:"flex",gap:7,marginTop:3,flexWrap:"wrap",alignItems:"center"}}>
-            {w.cepa&&<span style={{fontSize:11,background:"#2a0a4a",border:"1px solid #6b2a9a",
-              borderRadius:10,padding:"1px 8px",color:"#c8a0e8"}}>🍇 {w.cepa}</span>}
+            {w.cepa&&<span style={{fontSize:11,background:T.isDark?"#2a0a4a":"#ece0ff",border:"1px solid #6b2a9a",
+              borderRadius:10,padding:"1px 8px",color:T.isDark?"#c8a0e8":"#7a4a9a"}}>🍇 {w.cepa}</span>}
             {w.añada&&<span style={{fontSize:11,color:T.textSub}}>📅 {w.añada}</span>}
             {w.pais&&<span style={{fontSize:11,color:T.textSub}}>📍 {w.pais}</span>}
             {w.cantidad>1&&<span style={{fontSize:11,color:T.accent,fontWeight:600}}>×{w.cantidad}</span>}
             {w.estrellas>0&&<span style={{fontSize:11,color:T.accent}}>{"★".repeat(w.estrellas)}{"☆".repeat(5-w.estrellas)}</span>}
             {w.precio&&Number(w.precio)>0&&(
-              <span style={{fontSize:11,background:"#0a2a0a",border:"1px solid #2a5a2a",
+              <span style={{fontSize:11,background:T.isDark?"#0a2a0a":"#e8f5e8",border:"1px solid #2a5a2a",
                 borderRadius:10,padding:"1px 8px",color:T.green}}>
                 ${Number(w.precio).toLocaleString("es-CL")}
               </span>
@@ -770,9 +770,9 @@ function WineCard({ w, onRetire, onEdit, compact=false }) {
           )}
           {(w.guardaHasta||w.fechaCompra)&&(
             <div style={{display:"flex",gap:10,marginTop:3,flexWrap:"wrap"}}>
-              {w.fechaCompra&&<span style={{fontSize:11,color:"#6a5030"}}>Compra: {w.fechaCompra}</span>}
+              {w.fechaCompra&&<span style={{fontSize:11,color:T.textDim}}>Compra: {w.fechaCompra}</span>}
               {w.guardaHasta&&(
-                <span style={{fontSize:11,color:vencida?T.error:proxima?"#e0a030":"#6a5030",fontWeight:vencida||proxima?600:400}}>
+                <span style={{fontSize:11,color:vencida?T.error:proxima?"#e0a030":T.textDim,fontWeight:vencida||proxima?600:400}}>
                   {vencida?"⚠️ Vencida: ":"🕐 Hasta: "}{w.guardaHasta}
                 </span>
               )}
@@ -781,12 +781,12 @@ function WineCard({ w, onRetire, onEdit, compact=false }) {
           {w.tags&&w.tags.length>0&&(
             <div style={{display:"flex",gap:4,flexWrap:"wrap",marginTop:4}}>
               {w.tags.map(t=>(
-                <span key={t} style={{background:"#1a1000",border:"1px solid #3a2800",
-                  borderRadius:20,padding:"1px 8px",fontSize:11,color:"#8a6040"}}>{t}</span>
+                <span key={t} style={{background:T.isDark?"#1a1000":T.inputBg,border:"1px solid #3a2800",
+                  borderRadius:20,padding:"1px 8px",fontSize:11,color:T.textDim}}>{t}</span>
               ))}
             </div>
           )}
-          {w.notas&&!compact&&<div style={{fontSize:12,color:"#c8b07a",fontStyle:"italic",marginTop:5}}>"{w.notas}"</div>}
+          {w.notas&&!compact&&<div style={{fontSize:12,color:T.isDark?"#c8b07a":T.textSub,fontStyle:"italic",marginTop:5}}>"{w.notas}"</div>}
         </div>
       </div>
 
@@ -794,24 +794,24 @@ function WineCard({ w, onRetire, onEdit, compact=false }) {
       <div style={{display:"flex",gap:8,marginTop:10,flexWrap:"wrap"}}>
         {onEdit&&(
           <button onClick={onEdit}
-            style={{background:"transparent",border:"1px solid #4a2800",borderRadius:6,
-              padding:"5px 14px",color:"#c8a060",cursor:"pointer",fontFamily:FONT,fontSize:12}}>
+            style={{background:"transparent",border:`1px solid ${T.borderDim}`,borderRadius:6,
+              padding:"5px 14px",color:T.accent,cursor:"pointer",fontFamily:FONT,fontSize:12}}>
             ✏️ Editar
           </button>
         )}
         {onRetire&&(confirm?(
           <div style={{display:"flex",gap:6,flex:1}}>
             <button onClick={()=>{ onRetire(); setConfirm(false); }}
-              style={{flex:1,background:"#7B1D1D",border:"none",borderRadius:6,padding:"6px",
+              style={{flex:1,background:T.accent,border:"none",borderRadius:6,padding:"6px",
                 color:"#fff",cursor:"pointer",fontFamily:FONT,fontSize:12}}>Sí, retirar</button>
             <button onClick={()=>setConfirm(false)}
-              style={{flex:1,background:"transparent",border:"1px solid #4a2800",borderRadius:6,
+              style={{flex:1,background:"transparent",border:`1px solid ${T.borderDim}`,borderRadius:6,
                 padding:"6px",color:T.textSub,cursor:"pointer",fontFamily:FONT,fontSize:12}}>Cancelar</button>
           </div>
         ):(
           <button onClick={()=>setConfirm(true)}
             style={{background:"transparent",border:"1px solid #3a1800",borderRadius:6,
-              padding:"5px 14px",color:"#7a5030",cursor:"pointer",fontFamily:FONT,fontSize:12}}>
+              padding:"5px 14px",color:T.textSub,cursor:"pointer",fontFamily:FONT,fontSize:12}}>
             Retirar
           </button>
         ))}
@@ -929,7 +929,7 @@ function ListView({ grid, onRemoveBottle, onHighlight, onEditBottle, onClose }) 
           {[["nombre","Nombre"],["añada","Añada"],["estrellas","Estrellas"],["guarda","Guarda"],["precio","Precio"]].map(([k,lbl])=>(
             <button key={k} onClick={()=>setSortBy(k)}
               style={{background:sortBy===k?T.gridBorder:"transparent",
-                border:`1px solid ${sortBy===k?"#7a4020":T.borderFaint}`,
+                border:`1px solid ${sortBy===k?T.textDim:T.borderFaint}`,
                 borderRadius:6,padding:"4px 12px",color:sortBy===k?T.accent:T.textDim,
                 cursor:"pointer",fontSize:12,fontFamily:FONT}}>{lbl}</button>
           ))}
@@ -942,7 +942,7 @@ function ListView({ grid, onRemoveBottle, onHighlight, onEditBottle, onClose }) 
               <div style={{fontSize:10,color:T.borderDim,marginBottom:2,letterSpacing:1}}>
                 FILA {r+1} · COL {c+1}
                 <span onClick={()=>{onHighlight(r,c);onClose();}}
-                  style={{color:"#7a5020",cursor:"pointer",marginLeft:8,textDecoration:"underline"}}>
+                  style={{color:T.textDim,cursor:"pointer",marginLeft:8,textDecoration:"underline"}}>
                   Ver en cava
                 </span>
               </div>
@@ -1004,8 +1004,8 @@ function SearchPanel({ grid, onHighlight, onEditBottle, onClose }) {
               <div style={{textAlign:"right"}}>
                 <div style={{fontSize:11,color:T.textDim,marginBottom:4}}>F{r+1} · C{c+1}</div>
                 <button onClick={()=>{ onEditBottle(w,[r,c],idx); onClose(); }}
-                  style={{background:"transparent",border:"1px solid #4a2800",borderRadius:6,
-                    padding:"3px 10px",color:"#c8a060",cursor:"pointer",fontFamily:FONT,fontSize:11}}>
+                  style={{background:"transparent",border:`1px solid ${T.borderDim}`,borderRadius:6,
+                    padding:"3px 10px",color:T.accent,cursor:"pointer",fontFamily:FONT,fontSize:11}}>
                   ✏️ Editar
                 </button>
               </div>
@@ -1054,7 +1054,7 @@ function SetupScreen({ onConfirm }) {
       <div style={{textAlign:"center",color:T.text,width:"min(560px,100%)",}}>
         <div style={{fontSize:48,marginBottom:10}}>🍷</div>
         <h1 style={{fontSize:32,fontWeight:300,letterSpacing:5,color:T.accent,margin:"0 0 4px"}}>MI CAVA</h1>
-        <p style={{color:"#7a5030",marginBottom:24,fontSize:12,letterSpacing:3}}>
+        <p style={{color:T.textSub,marginBottom:24,fontSize:12,letterSpacing:3}}>
           {step===1 ? "PASO 1 · DIMENSIONES Y ESTILO" : "PASO 2 · DISEÑA TU CAVA"}
         </p>
 
@@ -1067,12 +1067,12 @@ function SetupScreen({ onConfirm }) {
               <div style={{display:"flex",gap:10}}>
                 {SHAPES.map(s=>(
                   <button key={s.id} onClick={()=>setShape(s.id)} style={{
-                    background:shape===s.id?"#2a0a00":"#1a0800",
-                    border:`1px solid ${shape===s.id?"#c04040":T.borderDim}`,
+                    background:shape===s.id?T.isDark?"#2a0a00":T.inputBg:T.isDark?"#1a0800":T.inputBg,
+                    border:`1px solid ${shape===s.id?T.error:T.borderDim}`,
                     borderRadius:10,padding:"12px 14px",color:T.text,cursor:"pointer",
                     transition:"all 0.2s",flex:1,textAlign:"left"}}>
                     <div style={{fontSize:22,marginBottom:4}}>{s.icon}</div>
-                    <div style={{fontSize:13,fontWeight:600,color:shape===s.id?T.accent:"#c8a880"}}>{s.label}</div>
+                    <div style={{fontSize:13,fontWeight:600,color:shape===s.id?T.accent:T.textSub}}>{s.label}</div>
                     <div style={{fontSize:11,color:T.textDim,marginTop:3,lineHeight:1.4}}>{s.desc}</div>
                   </button>
                 ))}
@@ -1091,7 +1091,7 @@ function SetupScreen({ onConfirm }) {
               </div>
             ))}
 
-            <p style={{color:"#7a5030",fontSize:13,marginBottom:20}}>
+            <p style={{color:T.textSub,fontSize:13,marginBottom:20}}>
               {cols}×{rows} = <strong style={{color:T.accent}}>{cols*rows} celdas totales</strong>
             </p>
 
@@ -1129,7 +1129,7 @@ function SetupScreen({ onConfirm }) {
                         borderRadius:isHoneycomb?6:4,
                         marginLeft: c===0&&isHoneycomb ? offset : 0,
                         background:isOff?"#0a0200":T.gridBorder,
-                        border:`1px solid ${isOff?"#1a0800":"#5a3010"}`,
+                        border:`1px solid ${isOff?T.isDark?"#1a0800":T.inputBg:T.gridBorder}`,
                         cursor:"pointer",
                         transition:"all 0.12s",
                         display:"flex",alignItems:"center",justifyContent:"center",
@@ -1752,14 +1752,23 @@ function CavaApp() {
         <input ref={importRef} type="file" accept=".json" onChange={handleImport} style={{display:"none"}}/>
         <div style={{display:"flex",gap:7,justifyContent:"center",flexWrap:"wrap"}}>
           {[
-            ["🔍",()=>setShowSearch(true),"#110600",T.borderDim,"#c8a880"],
-            ["≡",()=>setShowList(true),"#110600",T.borderDim,"#c8a880"],
-            ["⬇",handleExport,"#0a1a0a","#2a4a2a",T.green],
-            ["⬆",()=>importRef.current?.click(),"#0a1a0a","#2a4a2a",T.green],
-          ].map(([lbl,fn,bg,br,col])=>(
+            ["🔍", ()=>setShowSearch(true)],
+            ["≡",  ()=>setShowList(true)],
+          ].map(([lbl,fn])=>(
             <button key={lbl} onClick={fn}
-              style={{background:bg,border:`1px solid ${br}`,borderRadius:8,
-                padding:"7px 13px",color:col,cursor:"pointer",fontSize:15,fontFamily:FONT}}>
+              style={{background:T.surfaceS,border:`1px solid ${T.borderDim}`,borderRadius:8,
+                padding:"7px 13px",color:T.textSub,cursor:"pointer",fontSize:15,fontFamily:FONT}}>
+              {lbl}
+            </button>
+          ))}
+          {[
+            ["⬇", handleExport],
+            ["⬆", ()=>importRef.current?.click()],
+          ].map(([lbl,fn])=>(
+            <button key={lbl} onClick={fn}
+              style={{background:T.isDark?"#0a1a0a":"#e8f4e8",
+                border:`1px solid ${T.green}88`,borderRadius:8,
+                padding:"7px 13px",color:T.green,cursor:"pointer",fontSize:15,fontFamily:FONT}}>
               {lbl}
             </button>
           ))}
@@ -1771,9 +1780,9 @@ function CavaApp() {
             🎨
           </button>
           <button onClick={()=>{ setLayoutEdit(v=>!v); setMoveMode(null); }}
-            style={{background:layoutEdit?"#1a0060":"transparent",
+            style={{background:layoutEdit?(T.isDark?"#1a0060":"#e8e0ff"):"transparent",
               border:`1px solid ${layoutEdit?"#8060ff":T.borderFaint}`,borderRadius:8,
-              padding:"7px 13px",color:layoutEdit?"#c0a0ff":T.textFaint,
+              padding:"7px 13px",color:layoutEdit?"#8060ff":T.textFaint,
               cursor:"pointer",fontSize:13,fontFamily:FONT}}>
             {layoutEdit?"✓ Editando forma":"⬡ Forma"}
           </button>
@@ -1786,7 +1795,7 @@ function CavaApp() {
               setGrid([]);
             }
           }}
-            style={{background:"transparent",border:"1px solid #3a1800",borderRadius:8,
+            style={{background:"transparent",border:`1px solid ${T.borderFaint}`,borderRadius:8,
               padding:"7px 13px",color:T.textFaint,cursor:"pointer",fontSize:15,fontFamily:FONT}}>
             ⚙
           </button>
@@ -1845,7 +1854,7 @@ function CavaApp() {
             if(layoutEdit){
               if(isDisabled)  cellBorder="1px dashed #3a1060";
               else if(canToggle) cellBorder=`1px dashed ${isHov?"#a080ff":"#5040a0"}`;
-              else            cellBorder=`1px solid ${bgC||"#5a3010"}88`;
+              else            cellBorder=`1px solid ${bgC||T.gridBorder}88`;
             } else if(isDisabled)      cellBorder="none";
             else if(isDragOver)        cellBorder="2px solid #60d0ff";
             else if(isSource)          cellBorder="2px solid #a080ff";
