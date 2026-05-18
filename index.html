@@ -180,31 +180,126 @@ const today = () => new Date().toISOString().slice(0,10);
 
 // ─── styles ───────────────────────────────────────────────────────────────────
 const FONT = "'Helvetica Neue',Helvetica,Arial,sans-serif";
-const iS = { width:"100%", background:"#0e0500", border:"1px solid #4a2800",
-  borderRadius:6, padding:"8px 12px", color:"#e8d5b0", fontFamily:FONT,
-  fontSize:15, outline:"none", boxSizing:"border-box" };
-const lS = { display:"block", fontSize:11, letterSpacing:2, color:"#9a7040",
-  marginBottom:5, textTransform:"uppercase" };
+
+// ─── Themes ───────────────────────────────────────────────────────────────────
+const THEMES = {
+  bodega: {
+    id:"bodega", name:"Bodega Oscura", emoji:"🕯️",
+    bg:         "radial-gradient(ellipse at 20% 0%,#1a0800,#080300 70%,#000)",
+    bgAlt:      "radial-gradient(ellipse at 30% 20%,#1a0800,#0a0400 60%,#000)",
+    surface:    "linear-gradient(160deg,#1a0a00,#2c1400)",
+    surfaceS:   "#1a0a00",
+    border:     "#6b3a1f", borderDim:"#4a2800", borderFaint:"#3a1800",
+    text:       "#e8d5b0", textSub:"#9a7040", textDim:"#6a4020", textFaint:"#5a3a20",
+    accent:     "#d4a853", accentDim:"#9a7040",
+    btnBg:      "linear-gradient(135deg,#7B1D1D,#a83232)", btnColor:"#fff",
+    inputBg:    "#0e0500",
+    cellEmpty:  "#160800", cellHov:"#2a1200",
+    overlay:    "rgba(10,5,0,0.88)",
+    green:      "#7ab87a", error:"#e05050",
+    gridBg:     "#0e050088", gridBorder:"#2a1200",
+    setupBg:    "#11050088", setupBorder:"#3a1a00",
+    scrollbar:  "#4a2800", scrollTrack:"#1a0800",
+    isDark:     true,
+  },
+  piedra: {
+    id:"piedra", name:"Cava de Piedra", emoji:"🪨",
+    bg:         "radial-gradient(ellipse at 20% 0%,#1e1e28,#0d0d10 70%,#08080c)",
+    bgAlt:      "radial-gradient(ellipse at 30% 20%,#1e1e28,#0d0d10 60%,#08080c)",
+    surface:    "linear-gradient(160deg,#22222a,#2a2a35)",
+    surfaceS:   "#22222a",
+    border:     "#4a4a6a", borderDim:"#3a3a4a", borderFaint:"#2a2a3a",
+    text:       "#e8e4dc", textSub:"#9a9aaa", textDim:"#6a6a80", textFaint:"#4a4a60",
+    accent:     "#c9a84c", accentDim:"#8a7a3a",
+    btnBg:      "linear-gradient(135deg,#5a3a8a,#8b6cbf)", btnColor:"#fff",
+    inputBg:    "#16161e",
+    cellEmpty:  "#18181f", cellHov:"#28283a",
+    overlay:    "rgba(5,5,12,0.88)",
+    green:      "#6ab87a", error:"#e05050",
+    gridBg:     "#16161e88", gridBorder:"#2a2a3a",
+    setupBg:    "#16161e88", setupBorder:"#2a2a3a",
+    scrollbar:  "#3a3a5a", scrollTrack:"#0d0d10",
+    isDark:     true,
+  },
+  colchagua: {
+    id:"colchagua", name:"Valle de Colchagua", emoji:"🍃",
+    bg:         "linear-gradient(160deg,#f5f0e8,#ede5d5)",
+    bgAlt:      "linear-gradient(160deg,#ece5d8,#ddd5c5)",
+    surface:    "linear-gradient(160deg,#fff,#f8f3eb)",
+    surfaceS:   "#ffffff",
+    border:     "#c8b89a", borderDim:"#d8c8aa", borderFaint:"#e0d0ba",
+    text:       "#2a1f10", textSub:"#7a6a50", textDim:"#9a8a70", textFaint:"#aaa090",
+    accent:     "#8b1a1a", accentDim:"#7a5a3a",
+    btnBg:      "linear-gradient(135deg,#8b1a1a,#b03030)", btnColor:"#fff",
+    inputBg:    "#faf7f2",
+    cellEmpty:  "#f0ebe0", cellHov:"#e8e0d0",
+    overlay:    "rgba(40,30,15,0.70)",
+    green:      "#5a7a3a", error:"#c03030",
+    gridBg:     "#f0ebe088", gridBorder:"#c8b89a",
+    setupBg:    "#ffffff88", setupBorder:"#c8b89a",
+    scrollbar:  "#c8b89a", scrollTrack:"#ede5d5",
+    isDark:     false,
+  },
+  sommelier: {
+    id:"sommelier", name:"Sommelier Moderno", emoji:"🥂",
+    bg:         "linear-gradient(160deg,#f8f5f0,#f0ece6)",
+    bgAlt:      "linear-gradient(160deg,#f2ede8,#e8e2da)",
+    surface:    "linear-gradient(160deg,#ffffff,#fafafa)",
+    surfaceS:   "#ffffff",
+    border:     "#e0d8cc", borderDim:"#e8e0d4", borderFaint:"#ece6dc",
+    text:       "#1a1a1a", textSub:"#6a6a6a", textDim:"#9a9a9a", textFaint:"#b8b8b8",
+    accent:     "#9b1d2a", accentDim:"#7a1520",
+    btnBg:      "linear-gradient(135deg,#9b1d2a,#c23040)", btnColor:"#fff",
+    inputBg:    "#f8f8f8",
+    cellEmpty:  "#f4f2ee", cellHov:"#ece8e0",
+    overlay:    "rgba(20,15,10,0.65)",
+    green:      "#2d7a4a", error:"#c02020",
+    gridBg:     "#f4f2ee88", gridBorder:"#e0d8cc",
+    setupBg:    "#ffffff88", setupBorder:"#e0d8cc",
+    scrollbar:  "#d0c8bc", scrollTrack:"#f0ece6",
+    isDark:     false,
+  },
+};
+
+const THEME_LS = "mi_cava_theme";
+// Module-level current theme (updated when user picks a theme)
+let T = THEMES[localStorage.getItem(THEME_LS) || "bodega"] || THEMES.bodega;
+const setThemeGlobal = (id) => {
+  T = THEMES[id] || THEMES.bodega;
+  localStorage.setItem(THEME_LS, id);
+};
+
+// Dynamic style helpers
+const iS = () => ({
+  width:"100%", background:T.inputBg, border:`1px solid ${T.borderDim}`,
+  borderRadius:6, padding:"8px 12px", color:T.text,
+  fontFamily:FONT, fontSize:15, outline:"none", boxSizing:"border-box",
+});
+const lS = () => ({ display:"block", fontSize:11, letterSpacing:2, color:T.textSub, marginBottom:5, textTransform:"uppercase" });
 const pill = (color, active) => ({
-  background: active ? color : "#1a0a00",
-  border:`1px solid ${active ? color : "#4a2800"}`,
-  borderRadius:20, padding:"5px 11px", color:"#e8d5b0",
+  background: active ? color : T.inputBg,
+  border:`1px solid ${active ? color : T.borderDim}`,
+  borderRadius:20, padding:"5px 11px", color: active ? "#fff" : T.text,
   cursor:"pointer", fontSize:12, fontFamily:FONT, transition:"all 0.18s",
 });
-const modalWrap = { position:"fixed", inset:0, background:"rgba(10,5,0,0.88)",
+const modalWrap = () => ({
+  position:"fixed", inset:0, background:T.overlay,
   display:"flex", alignItems:"center", justifyContent:"center", zIndex:200,
-  backdropFilter:"blur(7px)", overflowY:"auto" };
-const modalBox = { background:"linear-gradient(160deg,#1a0a00,#2c1400)",
-  border:"1px solid #6b3a1f", borderRadius:16, padding:"28px 36px",
+  backdropFilter:"blur(7px)", overflowY:"auto",
+});
+const modalBox = () => ({
+  background:T.surface, border:`1px solid ${T.border}`, borderRadius:16, padding:"28px 36px",
   width:"min(500px, 96vw)", maxHeight:"92vh", overflowY:"auto",
-  boxShadow:"0 32px 80px #000c", fontFamily:FONT, color:"#e8d5b0",
-  margin:"auto" };
-const btnPrimary = { background:"linear-gradient(135deg,#7B1D1D,#a83232)", border:"none",
-  borderRadius:8, padding:"11px", color:"#fff", cursor:"pointer",
-  fontSize:15, letterSpacing:1, fontFamily:FONT };
-const btnGhost = { background:"transparent", border:"1px solid #4a2800",
-  borderRadius:8, padding:"11px 18px", color:"#9a7040",
-  cursor:"pointer", fontSize:15, fontFamily:FONT };
+  boxShadow:"0 32px 80px rgba(0,0,0,0.3)", fontFamily:FONT, color:T.text, margin:"auto",
+});
+const btnPrimary = () => ({
+  background:T.btnBg, border:"none", borderRadius:8, padding:"11px",
+  color:T.btnColor, cursor:"pointer", fontSize:15, letterSpacing:1, fontFamily:FONT,
+});
+const btnGhost = () => ({
+  background:"transparent", border:`1px solid ${T.borderDim}`,
+  borderRadius:8, padding:"11px 18px", color:T.textSub, cursor:"pointer", fontSize:15, fontFamily:FONT,
+});
 
 // ─── StarRating ───────────────────────────────────────────────────────────────
 function StarRating({ value=0, onChange, readOnly=false }) {
@@ -217,7 +312,7 @@ function StarRating({ value=0, onChange, readOnly=false }) {
           onMouseEnter={()=>!readOnly&&setHov(n)}
           onMouseLeave={()=>setHov(0)}
           style={{fontSize:24,cursor:readOnly?"default":"pointer",
-            color:(hov||value)>=n?"#d4a853":"#3a1800",
+            color:(hov||value)>=n?T.accent:T.borderFaint,
             transition:"color 0.12s",userSelect:"none"}}>★</span>
       ))}
     </div>
@@ -236,12 +331,12 @@ function TagInput({ tags=[], onChange }) {
     <div>
       <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:8}}>
         {tags.map(t=>(
-          <span key={t} style={{background:"#2a1200",border:"1px solid #5a3000",
+          <span key={t} style={{background:T.gridBorder,border:"1px solid #5a3000",
             borderRadius:20,padding:"3px 10px",fontSize:12,color:"#c8a880",
             display:"flex",alignItems:"center",gap:5}}>
             {t}
             <span onClick={()=>onChange(tags.filter(x=>x!==t))}
-              style={{cursor:"pointer",color:"#6a4020",fontSize:16,lineHeight:1,padding:"0 2px"}}>×</span>
+              style={{cursor:"pointer",color:T.textDim,fontSize:16,lineHeight:1,padding:"0 2px"}}>×</span>
           </span>
         ))}
       </div>
@@ -249,9 +344,9 @@ function TagInput({ tags=[], onChange }) {
         <input value={input} onChange={e=>setInput(e.target.value)}
           onKeyDown={e=>{if(e.key==="Enter"||e.key===","){e.preventDefault();add();}}}
           placeholder="Escribe y presiona Enter…"
-          style={{...iS,flex:1,padding:"8px 10px",fontSize:13}}/>
-        <button onClick={add} style={{...iS,width:"auto",padding:"8px 14px",
-          cursor:"pointer",fontSize:16,color:"#d4a853"}}>+</button>
+          style={{...iS(),flex:1,padding:"8px 10px",fontSize:13}}/>
+        <button onClick={add} style={{...iS(),width:"auto",padding:"8px 14px",
+          cursor:"pointer",fontSize:16,color:T.accent}}>+</button>
       </div>
     </div>
   );
@@ -322,14 +417,14 @@ function AuthScreen({ onAuth }) {
 
   return (
     <div style={{minHeight:"100vh",
-      background:"radial-gradient(ellipse at 30% 20%,#1a0800,#0a0400 60%,#000)",
+      background:T.bgAlt,
       display:"flex",alignItems:"center",justifyContent:"center",fontFamily:FONT}}>
-      <div style={{textAlign:"center",color:"#e8d5b0",width:"min(400px,92vw)",padding:24}}>
+      <div style={{textAlign:"center",color:T.text,width:"min(400px,92vw)",padding:24}}>
         <div style={{fontSize:52,marginBottom:12}}>🍷</div>
-        <h1 style={{fontSize:34,fontWeight:300,letterSpacing:5,color:"#d4a853",margin:"0 0 6px"}}>MI CAVA</h1>
-        <p style={{color:"#6a4020",fontSize:12,letterSpacing:3,marginBottom:28}}>{titles[mode]}</p>
+        <h1 style={{fontSize:34,fontWeight:300,letterSpacing:5,color:T.accent,margin:"0 0 6px"}}>MI CAVA</h1>
+        <p style={{color:T.textDim,fontSize:12,letterSpacing:3,marginBottom:28}}>{titles[mode]}</p>
 
-        <div style={{background:"#11050088",border:"1px solid #3a1a00",borderRadius:16,padding:"28px 28px"}}>
+        <div style={{background:T.setupBg,border:"1px solid #3a1a00",borderRadius:16,padding:"28px 28px"}}>
 
           {/* Social login buttons — only on login and register screens */}
           {mode !== "reset" && (<>
@@ -361,35 +456,35 @@ function AuthScreen({ onAuth }) {
 
             {/* Divider */}
             <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:18}}>
-              <div style={{flex:1,height:1,background:"#3a1a00"}}/>
-              <span style={{fontSize:12,color:"#5a3a20"}}>o con email</span>
-              <div style={{flex:1,height:1,background:"#3a1a00"}}/>
+              <div style={{flex:1,height:1,background:T.setupBorder}}/>
+              <span style={{fontSize:12,color:T.textFaint}}>o con email</span>
+              <div style={{flex:1,height:1,background:T.setupBorder}}/>
             </div>
           </>)}
 
           {/* Nombre solo en registro */}
           {mode==="register" && (
             <div style={{marginBottom:14}}>
-              <label style={lS}>Nombre</label>
+              <label style={lS()}>Nombre</label>
               <input value={name} onChange={e=>setName(e.target.value)}
-                style={iS} placeholder="Tu nombre"/>
+                style={iS()} placeholder="Tu nombre"/>
             </div>
           )}
 
           {/* Email: siempre visible */}
           <div style={{marginBottom:14}}>
-            <label style={lS}>Email</label>
+            <label style={lS()}>Email</label>
             <input type="email" value={email} onChange={e=>setEmail(e.target.value)}
-              style={iS} placeholder="correo@ejemplo.com"
+              style={iS()} placeholder="correo@ejemplo.com"
               onKeyDown={e=>e.key==="Enter"&&submit()}/>
           </div>
 
           {/* Contraseña: solo login y registro */}
           {mode!=="reset" && (
             <div style={{marginBottom:error||info?12:8}}>
-              <label style={lS}>Contraseña</label>
+              <label style={lS()}>Contraseña</label>
               <input type="password" value={pass} onChange={e=>setPass(e.target.value)}
-                style={iS} placeholder="••••••••"
+                style={iS()} placeholder="••••••••"
                 onKeyDown={e=>e.key==="Enter"&&submit()}/>
             </div>
           )}
@@ -416,7 +511,7 @@ function AuthScreen({ onAuth }) {
           {/* Mensaje de éxito (reset enviado) */}
           {info && (
             <div style={{background:"#0a2a0a",border:"1px solid #2a5a2a",borderRadius:8,
-              padding:"10px 12px",marginBottom:16,fontSize:13,color:"#7ab87a",textAlign:"left",lineHeight:1.5}}>
+              padding:"10px 12px",marginBottom:16,fontSize:13,color:T.green,textAlign:"left",lineHeight:1.5}}>
               ✅ {info}
             </div>
           )}
@@ -424,7 +519,7 @@ function AuthScreen({ onAuth }) {
           {/* Botón principal */}
           {!info && (
             <button onClick={submit} disabled={busy}
-              style={{...btnPrimary,width:"100%",opacity:busy?0.6:1,
+              style={{...btnPrimary(),width:"100%",opacity:busy?0.6:1,
                 padding:"13px",fontSize:15,letterSpacing:1}}>
               {busy ? "…" : mode==="login" ? "Entrar" : mode==="register" ? "Crear cuenta" : "Enviar enlace"}
             </button>
@@ -500,24 +595,24 @@ function WineForm({ onSave, onClose, initial=null }) {
   };
 
   return (
-    <div style={modalWrap}>
-      <div style={{...modalBox,width:"min(520px,96vw)"}}>
-        <h2 style={{margin:"0 0 20px",fontSize:20,letterSpacing:2,fontWeight:400,color:"#d4a853"}}>
+    <div style={modalWrap()}>
+      <div style={{...modalBox(),width:"min(520px,96vw)"}}>
+        <h2 style={{margin:"0 0 20px",fontSize:20,letterSpacing:2,fontWeight:400,color:T.accent}}>
           {isEdit ? "Editar Vino" : "Agregar Vino"}
         </h2>
 
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 12px"}}>
           {[["nombre","Nombre *"],["bodega","Bodega"],["añada","Añada"],["pais","País / Región"]].map(([k,lbl])=>(
             <div key={k} style={{marginBottom:12}}>
-              <label style={lS}>{lbl}</label>
-              <input value={form[k]} onChange={e=>set(k,e.target.value)} style={iS}/>
+              <label style={lS()}>{lbl}</label>
+              <input value={form[k]} onChange={e=>set(k,e.target.value)} style={iS()}/>
             </div>
           ))}
         </div>
 
         {/* tipo */}
         <div style={{marginBottom:12}}>
-          <label style={lS}>Tipo</label>
+          <label style={lS()}>Tipo</label>
           <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>
             {WINE_TYPES.map(t=>(
               <button key={t.id} onClick={()=>{set("tipo",t.id);set("cepas",[]);set("cepaCustom","");}}
@@ -528,7 +623,7 @@ function WineForm({ onSave, onClose, initial=null }) {
 
         {/* cepa */}
         <div style={{marginBottom:12}}>
-          <label style={lS}>
+          <label style={lS()}>
             Cepa / Varietal
             {form.cepas.length>1&&<span style={{color:"#c8a0e8",marginLeft:6,fontSize:10,letterSpacing:1}}>ENSAMBLAJE</span>}
           </label>
@@ -543,7 +638,7 @@ function WineForm({ onSave, onClose, initial=null }) {
           </div>
           {(form.cepas.includes("Otra")||form.cepas.includes("Otro"))&&(
             <input value={form.cepaCustom} onChange={e=>set("cepaCustom",e.target.value)}
-              placeholder="Especifica la cepa…" style={{...iS,marginTop:8,fontSize:13}}/>
+              placeholder="Especifica la cepa…" style={{...iS(),marginTop:8,fontSize:13}}/>
           )}
           {form.cepas.filter(c=>c!=="Otra"&&c!=="Otro").length>1&&(
             <div style={{marginTop:6,fontSize:11,color:"#c8a0e8"}}>
@@ -554,7 +649,7 @@ function WineForm({ onSave, onClose, initial=null }) {
 
         {/* maridaje */}
         <div style={{marginBottom:12}}>
-          <label style={lS}>Maridaje</label>
+          <label style={lS()}>Maridaje</label>
           <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>
             {MARIDAJES.map(m=>{
               const active=form.maridajes.includes(m.id);
@@ -570,66 +665,66 @@ function WineForm({ onSave, onClose, initial=null }) {
         {/* fechas */}
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 12px",marginBottom:12}}>
           <div>
-            <label style={lS}>Fecha de compra</label>
+            <label style={lS()}>Fecha de compra</label>
             <input type="date" value={form.fechaCompra} onChange={e=>set("fechaCompra",e.target.value)}
-              style={{...iS,colorScheme:"dark"}}/>
+              style={{...iS(),colorScheme:"dark"}}/>
           </div>
           <div>
-            <label style={lS}>Beber antes de</label>
+            <label style={lS()}>Beber antes de</label>
             <input type="date" value={form.guardaHasta} onChange={e=>set("guardaHasta",e.target.value)}
-              style={{...iS,colorScheme:"dark"}}/>
+              style={{...iS(),colorScheme:"dark"}}/>
           </div>
         </div>
 
         {/* estrellas */}
         <div style={{marginBottom:12}}>
-          <label style={lS}>Puntaje personal</label>
+          <label style={lS()}>Puntaje personal</label>
           <StarRating value={form.estrellas} onChange={v=>set("estrellas",v)}/>
         </div>
 
         {/* notas */}
         <div style={{marginBottom:12}}>
-          <label style={lS}>Notas de cata</label>
+          <label style={lS()}>Notas de cata</label>
           <textarea value={form.notas} onChange={e=>set("notas",e.target.value)} rows={2}
-            style={{...iS,resize:"vertical"}}/>
+            style={{...iS(),resize:"vertical"}}/>
         </div>
 
         {/* tags */}
         <div style={{marginBottom:12}}>
-          <label style={lS}>Etiquetas</label>
+          <label style={lS()}>Etiquetas</label>
           <TagInput tags={form.tags} onChange={v=>set("tags",v)}/>
         </div>
 
         {/* precio + cantidad */}
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 16px",marginBottom:20}}>
           <div>
-            <label style={lS}>Precio de compra</label>
+            <label style={lS()}>Precio de compra</label>
             <div style={{position:"relative"}}>
               <span style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",
-                color:"#9a7040",fontSize:13,pointerEvents:"none"}}>$</span>
+                color:T.textSub,fontSize:13,pointerEvents:"none"}}>$</span>
               <input type="number" min="0" step="0.01" value={form.precio}
                 onChange={e=>set("precio",e.target.value)} placeholder="0"
-                style={{...iS,paddingLeft:22}}/>
+                style={{...iS(),paddingLeft:22}}/>
             </div>
           </div>
           <div>
-            <label style={lS}>Cantidad</label>
+            <label style={lS()}>Cantidad</label>
             <div style={{display:"flex",alignItems:"center",gap:10,height:38}}>
               <button onClick={()=>set("cantidad",Math.max(1,form.cantidad-1))}
-                style={{...iS,width:36,padding:"5px",textAlign:"center",cursor:"pointer",fontSize:18}}>−</button>
-              <span style={{color:"#d4a853",fontSize:22,minWidth:24,textAlign:"center"}}>{form.cantidad}</span>
+                style={{...iS(),width:36,padding:"5px",textAlign:"center",cursor:"pointer",fontSize:18}}>−</button>
+              <span style={{color:T.accent,fontSize:22,minWidth:24,textAlign:"center"}}>{form.cantidad}</span>
               <button onClick={()=>set("cantidad",form.cantidad+1)}
-                style={{...iS,width:36,padding:"5px",textAlign:"center",cursor:"pointer",fontSize:18}}>+</button>
+                style={{...iS(),width:36,padding:"5px",textAlign:"center",cursor:"pointer",fontSize:18}}>+</button>
             </div>
           </div>
         </div>
 
         <div style={{display:"flex",gap:12}}>
           <button onClick={handleSave} disabled={!valid}
-            style={{...btnPrimary,flex:1,opacity:valid?1:0.5,cursor:valid?"pointer":"not-allowed"}}>
+            style={{...btnPrimary(),flex:1,opacity:valid?1:0.5,cursor:valid?"pointer":"not-allowed"}}>
             {isEdit ? "Guardar cambios" : "Agregar a la Cava"}
           </button>
-          <button onClick={onClose} style={btnGhost}>Cancelar</button>
+          <button onClick={onClose} style={btnGhost()}>Cancelar</button>
         </div>
       </div>
     </div>
@@ -653,17 +748,17 @@ function WineCard({ w, onRetire, onEdit, compact=false }) {
         <span style={{fontSize:compact?22:28}}>{tipo.emoji}</span>
         <div style={{flex:1,minWidth:0}}>
           <div style={{fontWeight:600,fontSize:compact?15:17,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{w.nombre}</div>
-          {w.bodega&&<div style={{fontSize:13,color:"#d4a853"}}>{w.bodega}</div>}
+          {w.bodega&&<div style={{fontSize:13,color:T.accent}}>{w.bodega}</div>}
           <div style={{display:"flex",gap:7,marginTop:3,flexWrap:"wrap",alignItems:"center"}}>
             {w.cepa&&<span style={{fontSize:11,background:"#2a0a4a",border:"1px solid #6b2a9a",
               borderRadius:10,padding:"1px 8px",color:"#c8a0e8"}}>🍇 {w.cepa}</span>}
-            {w.añada&&<span style={{fontSize:11,color:"#9a7040"}}>📅 {w.añada}</span>}
-            {w.pais&&<span style={{fontSize:11,color:"#9a7040"}}>📍 {w.pais}</span>}
-            {w.cantidad>1&&<span style={{fontSize:11,color:"#d4a853",fontWeight:600}}>×{w.cantidad}</span>}
-            {w.estrellas>0&&<span style={{fontSize:11,color:"#d4a853"}}>{"★".repeat(w.estrellas)}{"☆".repeat(5-w.estrellas)}</span>}
+            {w.añada&&<span style={{fontSize:11,color:T.textSub}}>📅 {w.añada}</span>}
+            {w.pais&&<span style={{fontSize:11,color:T.textSub}}>📍 {w.pais}</span>}
+            {w.cantidad>1&&<span style={{fontSize:11,color:T.accent,fontWeight:600}}>×{w.cantidad}</span>}
+            {w.estrellas>0&&<span style={{fontSize:11,color:T.accent}}>{"★".repeat(w.estrellas)}{"☆".repeat(5-w.estrellas)}</span>}
             {w.precio&&Number(w.precio)>0&&(
               <span style={{fontSize:11,background:"#0a2a0a",border:"1px solid #2a5a2a",
-                borderRadius:10,padding:"1px 8px",color:"#7ab87a"}}>
+                borderRadius:10,padding:"1px 8px",color:T.green}}>
                 ${Number(w.precio).toLocaleString("es-CL")}
               </span>
             )}
@@ -677,7 +772,7 @@ function WineCard({ w, onRetire, onEdit, compact=false }) {
             <div style={{display:"flex",gap:10,marginTop:3,flexWrap:"wrap"}}>
               {w.fechaCompra&&<span style={{fontSize:11,color:"#6a5030"}}>Compra: {w.fechaCompra}</span>}
               {w.guardaHasta&&(
-                <span style={{fontSize:11,color:vencida?"#e05050":proxima?"#e0a030":"#6a5030",fontWeight:vencida||proxima?600:400}}>
+                <span style={{fontSize:11,color:vencida?T.error:proxima?"#e0a030":"#6a5030",fontWeight:vencida||proxima?600:400}}>
                   {vencida?"⚠️ Vencida: ":"🕐 Hasta: "}{w.guardaHasta}
                 </span>
               )}
@@ -711,7 +806,7 @@ function WineCard({ w, onRetire, onEdit, compact=false }) {
                 color:"#fff",cursor:"pointer",fontFamily:FONT,fontSize:12}}>Sí, retirar</button>
             <button onClick={()=>setConfirm(false)}
               style={{flex:1,background:"transparent",border:"1px solid #4a2800",borderRadius:6,
-                padding:"6px",color:"#9a7040",cursor:"pointer",fontFamily:FONT,fontSize:12}}>Cancelar</button>
+                padding:"6px",color:T.textSub,cursor:"pointer",fontFamily:FONT,fontSize:12}}>Cancelar</button>
           </div>
         ):(
           <button onClick={()=>setConfirm(true)}
@@ -728,13 +823,13 @@ function WineCard({ w, onRetire, onEdit, compact=false }) {
 // ─── CellDetail ───────────────────────────────────────────────────────────────
 function CellDetail({ bottles, cellIndex, onRemoveBottle, onAddMore, onStartMove, onEditBottle, onClose }) {
   return (
-    <div style={modalWrap}>
-      <div style={{...modalBox,width:"min(500px,96vw)"}}>
+    <div style={modalWrap()}>
+      <div style={{...modalBox(),width:"min(500px,96vw)"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
-          <h2 style={{margin:0,fontSize:19,color:"#d4a853",letterSpacing:2,fontWeight:400}}>
+          <h2 style={{margin:0,fontSize:19,color:T.accent,letterSpacing:2,fontWeight:400}}>
             Celda · {bottles.length} botella{bottles.length!==1?"s":""}
           </h2>
-          <button onClick={onClose} style={{background:"transparent",border:"none",color:"#6a4020",fontSize:24,cursor:"pointer",padding:"4px 8px"}}>✕</button>
+          <button onClick={onClose} style={{background:"transparent",border:"none",color:T.textDim,fontSize:24,cursor:"pointer",padding:"4px 8px"}}>✕</button>
         </div>
         {bottles.map((w,idx)=>(
           <div key={idx}>
@@ -754,7 +849,7 @@ function CellDetail({ bottles, cellIndex, onRemoveBottle, onAddMore, onStartMove
           </div>
         ))}
         <button onClick={onAddMore}
-          style={{...btnPrimary,width:"100%",marginTop:4,fontSize:14,letterSpacing:1}}>
+          style={{...btnPrimary(),width:"100%",marginTop:4,fontSize:14,letterSpacing:1}}>
           + Agregar otra botella aquí
         </button>
       </div>
@@ -797,32 +892,32 @@ function ListView({ grid, onRemoveBottle, onHighlight, onEditBottle, onClose }) 
 
   return (
     <div style={{...modalWrap,alignItems:"flex-start",paddingTop:20}}>
-      <div style={{...modalBox,width:"min(620px,96vw)",margin:"20px auto"}}>
+      <div style={{...modalBox(),width:"min(620px,96vw)",margin:"20px auto"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
           <div>
-            <h2 style={{margin:"0 0 2px",fontSize:19,color:"#d4a853",letterSpacing:2,fontWeight:400}}>
+            <h2 style={{margin:"0 0 2px",fontSize:19,color:T.accent,letterSpacing:2,fontWeight:400}}>
               Inventario · {filtered.length} vino{filtered.length!==1?"s":""}
             </h2>
             {totalValor>0&&(
-              <div style={{fontSize:12,color:"#7ab87a"}}>
+              <div style={{fontSize:12,color:T.green}}>
                 Valor estimado: <strong>${totalValor.toLocaleString("es-CL")}</strong>
               </div>
             )}
           </div>
-          <button onClick={onClose} style={{background:"transparent",border:"none",color:"#6a4020",fontSize:24,cursor:"pointer",padding:"4px 8px"}}>✕</button>
+          <button onClick={onClose} style={{background:"transparent",border:"none",color:T.textDim,fontSize:24,cursor:"pointer",padding:"4px 8px"}}>✕</button>
         </div>
 
         <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:12}}>
           <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Buscar…"
-            style={{...iS,flex:"1 1 120px",padding:"7px 10px",fontSize:13}}/>
+            style={{...iS(),flex:"1 1 120px",padding:"7px 10px",fontSize:13}}/>
           <select value={filterTipo} onChange={e=>setFilterTipo(e.target.value)}
-            style={{...iS,width:"auto",padding:"7px 10px",fontSize:13,cursor:"pointer"}}>
+            style={{...iS(),width:"auto",padding:"7px 10px",fontSize:13,cursor:"pointer"}}>
             <option value="">Todos los tipos</option>
             {WINE_TYPES.map(t=><option key={t.id} value={t.id}>{t.emoji} {t.label}</option>)}
           </select>
           {allTags.length>0&&(
             <select value={filterTag} onChange={e=>setFilterTag(e.target.value)}
-              style={{...iS,width:"auto",padding:"7px 10px",fontSize:13,cursor:"pointer"}}>
+              style={{...iS(),width:"auto",padding:"7px 10px",fontSize:13,cursor:"pointer"}}>
               <option value="">Todos los tags</option>
               {allTags.map(t=><option key={t} value={t}>{t}</option>)}
             </select>
@@ -830,21 +925,21 @@ function ListView({ grid, onRemoveBottle, onHighlight, onEditBottle, onClose }) 
         </div>
 
         <div style={{display:"flex",gap:6,marginBottom:14,flexWrap:"wrap",alignItems:"center"}}>
-          <span style={{fontSize:11,color:"#6a4020",letterSpacing:1}}>ORDENAR:</span>
+          <span style={{fontSize:11,color:T.textDim,letterSpacing:1}}>ORDENAR:</span>
           {[["nombre","Nombre"],["añada","Añada"],["estrellas","Estrellas"],["guarda","Guarda"],["precio","Precio"]].map(([k,lbl])=>(
             <button key={k} onClick={()=>setSortBy(k)}
-              style={{background:sortBy===k?"#2a1200":"transparent",
-                border:`1px solid ${sortBy===k?"#7a4020":"#3a1800"}`,
-                borderRadius:6,padding:"4px 12px",color:sortBy===k?"#d4a853":"#6a4020",
+              style={{background:sortBy===k?T.gridBorder:"transparent",
+                border:`1px solid ${sortBy===k?"#7a4020":T.borderFaint}`,
+                borderRadius:6,padding:"4px 12px",color:sortBy===k?T.accent:T.textDim,
                 cursor:"pointer",fontSize:12,fontFamily:FONT}}>{lbl}</button>
           ))}
         </div>
 
         <div style={{maxHeight:"55vh",overflowY:"auto",paddingRight:4}}>
-          {filtered.length===0&&<p style={{color:"#5a3a20",textAlign:"center",padding:"24px 0"}}>Sin resultados</p>}
+          {filtered.length===0&&<p style={{color:T.textFaint,textAlign:"center",padding:"24px 0"}}>Sin resultados</p>}
           {filtered.map(({w,r,c,idx},i)=>(
             <div key={i}>
-              <div style={{fontSize:10,color:"#4a2800",marginBottom:2,letterSpacing:1}}>
+              <div style={{fontSize:10,color:T.borderDim,marginBottom:2,letterSpacing:1}}>
                 FILA {r+1} · COL {c+1}
                 <span onClick={()=>{onHighlight(r,c);onClose();}}
                   style={{color:"#7a5020",cursor:"pointer",marginLeft:8,textDecoration:"underline"}}>
@@ -881,16 +976,16 @@ function SearchPanel({ grid, onHighlight, onEditBottle, onClose }) {
 
   return (
     <div style={{...modalWrap,alignItems:"flex-start",paddingTop:40,zIndex:300}}>
-      <div style={{...modalBox,width:"min(480px,96vw)",margin:"20px auto"}}>
+      <div style={{...modalBox(),width:"min(480px,96vw)",margin:"20px auto"}}>
         <div style={{display:"flex",gap:10,marginBottom:18,alignItems:"center"}}>
           <span style={{fontSize:20}}>🔍</span>
           <input ref={ref} value={q} onChange={e=>setQ(e.target.value)}
             placeholder="Nombre, cepa, bodega, tag, maridaje…"
-            style={{...iS,flex:1}}/>
-          <button onClick={onClose} style={{background:"transparent",border:"none",color:"#6a4020",fontSize:24,cursor:"pointer",padding:"4px 8px"}}>✕</button>
+            style={{...iS(),flex:1}}/>
+          <button onClick={onClose} style={{background:"transparent",border:"none",color:T.textDim,fontSize:24,cursor:"pointer",padding:"4px 8px"}}>✕</button>
         </div>
-        {!query&&<p style={{color:"#5a3a20",fontSize:14,textAlign:"center",margin:"24px 0"}}>Escribe para buscar</p>}
-        {query&&results.length===0&&<p style={{color:"#5a3a20",fontSize:14,textAlign:"center",margin:"24px 0"}}>Sin resultados para "{q}"</p>}
+        {!query&&<p style={{color:T.textFaint,fontSize:14,textAlign:"center",margin:"24px 0"}}>Escribe para buscar</p>}
+        {query&&results.length===0&&<p style={{color:T.textFaint,fontSize:14,textAlign:"center",margin:"24px 0"}}>Sin resultados para "{q}"</p>}
         {results.map(({r,c,w,idx},i)=>{
           const tipo=WINE_TYPES.find(t=>t.id===w.tipo)||WINE_TYPES[0];
           return (
@@ -902,12 +997,12 @@ function SearchPanel({ grid, onHighlight, onEditBottle, onClose }) {
                 <span style={{fontSize:20}}>{tipo.emoji}</span>
                 <div style={{flex:1,display:"inline-block",marginLeft:10}}>
                   <div style={{fontWeight:600,fontSize:15}}>{w.nombre}</div>
-                  <div style={{fontSize:12,color:"#9a7040"}}>{[w.bodega,w.cepa,w.añada,w.pais].filter(Boolean).join(" · ")}</div>
-                  {w.estrellas>0&&<div style={{fontSize:11,color:"#d4a853"}}>{"★".repeat(w.estrellas)}</div>}
+                  <div style={{fontSize:12,color:T.textSub}}>{[w.bodega,w.cepa,w.añada,w.pais].filter(Boolean).join(" · ")}</div>
+                  {w.estrellas>0&&<div style={{fontSize:11,color:T.accent}}>{"★".repeat(w.estrellas)}</div>}
                 </div>
               </div>
               <div style={{textAlign:"right"}}>
-                <div style={{fontSize:11,color:"#6a4020",marginBottom:4}}>F{r+1} · C{c+1}</div>
+                <div style={{fontSize:11,color:T.textDim,marginBottom:4}}>F{r+1} · C{c+1}</div>
                 <button onClick={()=>{ onEditBottle(w,[r,c],idx); onClose(); }}
                   style={{background:"transparent",border:"1px solid #4a2800",borderRadius:6,
                     padding:"3px 10px",color:"#c8a060",cursor:"pointer",fontFamily:FONT,fontSize:11}}>
@@ -917,7 +1012,7 @@ function SearchPanel({ grid, onHighlight, onEditBottle, onClose }) {
             </div>
           );
         })}
-        {results.length>0&&<p style={{fontSize:11,color:"#5a3a20",textAlign:"center",marginTop:10}}>
+        {results.length>0&&<p style={{fontSize:11,color:T.textFaint,textAlign:"center",marginTop:10}}>
           {results.length} resultado{results.length!==1?"s":""} · toca para ir a la celda</p>}
       </div>
     </div>
@@ -953,32 +1048,32 @@ function SetupScreen({ onConfirm }) {
 
   return (
     <div style={{minHeight:"100vh",
-      background:"radial-gradient(ellipse at 30% 20%,#1a0800,#0a0400 60%,#000)",
+      background:T.bgAlt,
       display:"flex",alignItems:"center",justifyContent:"center",fontFamily:FONT,
       padding:"20px 16px"}}>
-      <div style={{textAlign:"center",color:"#e8d5b0",width:"min(560px,100%)",}}>
+      <div style={{textAlign:"center",color:T.text,width:"min(560px,100%)",}}>
         <div style={{fontSize:48,marginBottom:10}}>🍷</div>
-        <h1 style={{fontSize:32,fontWeight:300,letterSpacing:5,color:"#d4a853",margin:"0 0 4px"}}>MI CAVA</h1>
+        <h1 style={{fontSize:32,fontWeight:300,letterSpacing:5,color:T.accent,margin:"0 0 4px"}}>MI CAVA</h1>
         <p style={{color:"#7a5030",marginBottom:24,fontSize:12,letterSpacing:3}}>
           {step===1 ? "PASO 1 · DIMENSIONES Y ESTILO" : "PASO 2 · DISEÑA TU CAVA"}
         </p>
 
-        <div style={{background:"#11050088",border:"1px solid #3a1a00",borderRadius:16,padding:"22px 24px"}}>
+        <div style={{background:T.setupBg,border:"1px solid #3a1a00",borderRadius:16,padding:"22px 24px"}}>
 
           {step===1 && (<>
             {/* Shape selector */}
             <div style={{marginBottom:20}}>
-              <label style={{...lS,marginBottom:10,display:"block"}}>Estilo de celda</label>
+              <label style={{...lS(),marginBottom:10,display:"block"}}>Estilo de celda</label>
               <div style={{display:"flex",gap:10}}>
                 {SHAPES.map(s=>(
                   <button key={s.id} onClick={()=>setShape(s.id)} style={{
                     background:shape===s.id?"#2a0a00":"#1a0800",
-                    border:`1px solid ${shape===s.id?"#c04040":"#4a2800"}`,
-                    borderRadius:10,padding:"12px 14px",color:"#e8d5b0",cursor:"pointer",
+                    border:`1px solid ${shape===s.id?"#c04040":T.borderDim}`,
+                    borderRadius:10,padding:"12px 14px",color:T.text,cursor:"pointer",
                     transition:"all 0.2s",flex:1,textAlign:"left"}}>
                     <div style={{fontSize:22,marginBottom:4}}>{s.icon}</div>
-                    <div style={{fontSize:13,fontWeight:600,color:shape===s.id?"#d4a853":"#c8a880"}}>{s.label}</div>
-                    <div style={{fontSize:11,color:"#6a4020",marginTop:3,lineHeight:1.4}}>{s.desc}</div>
+                    <div style={{fontSize:13,fontWeight:600,color:shape===s.id?T.accent:"#c8a880"}}>{s.label}</div>
+                    <div style={{fontSize:11,color:T.textDim,marginTop:3,lineHeight:1.4}}>{s.desc}</div>
                   </button>
                 ))}
               </div>
@@ -988,28 +1083,28 @@ function SetupScreen({ onConfirm }) {
             {[["Columnas (ancho)",cols,v=>applyDims(v,rows),2,16],
               ["Filas (alto)",rows,v=>applyDims(cols,v),2,12]].map(([lbl,val,setter,mn,mx])=>(
               <div key={lbl} style={{marginBottom:16}}>
-                <label style={{...lS,marginBottom:7}}>{lbl}: <span style={{color:"#d4a853",fontSize:18}}>{val}</span></label>
+                <label style={{...lS(),marginBottom:7}}>{lbl}: <span style={{color:T.accent,fontSize:18}}>{val}</span></label>
                 <input type="range" min={mn} max={mx} value={val}
                   onChange={e=>setter(Number(e.target.value))}
                   style={{width:"100%",accentColor:"#9B2335",height:20}}/>
-                <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"#5a3a20"}}><span>{mn}</span><span>{mx}</span></div>
+                <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:T.textFaint}}><span>{mn}</span><span>{mx}</span></div>
               </div>
             ))}
 
             <p style={{color:"#7a5030",fontSize:13,marginBottom:20}}>
-              {cols}×{rows} = <strong style={{color:"#d4a853"}}>{cols*rows} celdas totales</strong>
+              {cols}×{rows} = <strong style={{color:T.accent}}>{cols*rows} celdas totales</strong>
             </p>
 
             <button onClick={()=>setStep(2)}
-              style={{...btnPrimary,width:"100%",padding:"13px",fontSize:15,letterSpacing:1,
+              style={{...btnPrimary(),width:"100%",padding:"13px",fontSize:15,letterSpacing:1,
                 boxShadow:"0 4px 20px #7B1D1D44"}}>
               Siguiente: diseñar forma →
             </button>
           </>)}
 
           {step===2 && (<>
-            <p style={{fontSize:12,color:"#9a7040",marginBottom:14,lineHeight:1.6}}>
-              Toca las celdas para <strong style={{color:"#e05050"}}>bloquearlas</strong> (oscuro = sin botella).
+            <p style={{fontSize:12,color:T.textSub,marginBottom:14,lineHeight:1.6}}>
+              Toca las celdas para <strong style={{color:T.error}}>bloquearlas</strong> (oscuro = sin botella).
               Usa esto para dar la forma exacta a tu cava.
             </p>
 
@@ -1020,7 +1115,7 @@ function SetupScreen({ onConfirm }) {
                 gridTemplateColumns:`repeat(${cols},${cellSize}px)`,
                 gap:isHoneycomb?3:4,
                 padding:"12px 16px",
-                background:"#0e050088",border:"1px solid #2a1200",borderRadius:12,
+                background:T.gridBg,border:"1px solid #2a1200",borderRadius:12,
               }}>
                 {preview.map((row,r)=>row.map((cell,c)=>{
                   const isOff = cell==="__disabled__";
@@ -1033,7 +1128,7 @@ function SetupScreen({ onConfirm }) {
                         height:isHoneycomb?Math.round(cellSize*1.15):Math.round(cellSize*2.2),
                         borderRadius:isHoneycomb?6:4,
                         marginLeft: c===0&&isHoneycomb ? offset : 0,
-                        background:isOff?"#0a0200":"#2a1200",
+                        background:isOff?"#0a0200":T.gridBorder,
                         border:`1px solid ${isOff?"#1a0800":"#5a3010"}`,
                         cursor:"pointer",
                         transition:"all 0.12s",
@@ -1041,7 +1136,7 @@ function SetupScreen({ onConfirm }) {
                         opacity:isOff?0.3:1,
                         boxShadow:isOff?"none":"inset 0 1px 0 #ffffff0a",
                       }}>
-                      {!isOff&&<span style={{fontSize:9,color:"#4a2800",userSelect:"none"}}>○</span>}
+                      {!isOff&&<span style={{fontSize:9,color:T.borderDim,userSelect:"none"}}>○</span>}
                       {isOff&&<span style={{fontSize:9,color:"#2a1000",userSelect:"none"}}>✕</span>}
                     </div>
                   );
@@ -1049,14 +1144,14 @@ function SetupScreen({ onConfirm }) {
               </div>
             </div>
 
-            <div style={{display:"flex",gap:16,justifyContent:"center",marginBottom:16,fontSize:12,color:"#6a4020"}}>
+            <div style={{display:"flex",gap:16,justifyContent:"center",marginBottom:16,fontSize:12,color:T.textDim}}>
               <span>🟫 {totalActive} activas</span>
               <span>⬛ {totalBlocked} bloqueadas</span>
             </div>
 
             <div style={{display:"flex",gap:8}}>
               <button onClick={()=>setStep(1)}
-                style={{...btnGhost,flex:"0 0 auto",padding:"11px 16px",fontSize:14}}>
+                style={{...btnGhost(),flex:"0 0 auto",padding:"11px 16px",fontSize:14}}>
                 ← Atrás
               </button>
               <button
@@ -1068,7 +1163,7 @@ function SetupScreen({ onConfirm }) {
               <button
                 onClick={()=>onConfirm({cols,rows,shape,grid:preview})}
                 disabled={totalActive===0}
-                style={{...btnPrimary,flex:1,padding:"11px",fontSize:14,letterSpacing:1,
+                style={{...btnPrimary(),flex:1,padding:"11px",fontSize:14,letterSpacing:1,
                   opacity:totalActive===0?0.4:1,boxShadow:"0 4px 20px #7B1D1D44"}}>
                 Crear mi cava ({totalActive} celdas) →
               </button>
@@ -1102,10 +1197,69 @@ function docToState(doc) {
   }
 }
 
+// ─── ThemePicker ──────────────────────────────────────────────────────────────
+function ThemePicker({ currentId, onPick, onClose }) {
+  return (
+    <div style={{...modalWrap(), zIndex:400}}>
+      <div style={{...modalBox(), width:"min(440px,96vw)"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+          <h2 style={{margin:0,fontSize:18,fontWeight:500,color:T.accent,letterSpacing:2}}>
+            🎨 Paleta de colores
+          </h2>
+          <button onClick={onClose} style={{background:"transparent",border:"none",
+            color:T.textDim,fontSize:22,cursor:"pointer"}}>✕</button>
+        </div>
+        <div style={{display:"flex",flexDirection:"column",gap:10}}>
+          {Object.values(THEMES).map(theme=>{
+            const active = theme.id === currentId;
+            return (
+              <button key={theme.id} onClick={()=>onPick(theme.id)}
+                style={{
+                  display:"flex", alignItems:"center", gap:14,
+                  background: active ? T.btnBg : "transparent",
+                  border:`2px solid ${active ? T.accent : T.borderDim}`,
+                  borderRadius:12, padding:"14px 18px", cursor:"pointer",
+                  fontFamily:FONT, textAlign:"left", transition:"all 0.18s",
+                  color: active ? "#fff" : T.text,
+                }}>
+                <span style={{fontSize:28}}>{theme.emoji}</span>
+                <div style={{flex:1}}>
+                  <div style={{fontWeight:600,fontSize:15}}>{theme.name}</div>
+                  <div style={{
+                    display:"flex",gap:5,marginTop:6,
+                  }}>
+                    {/* Color swatches */}
+                    {[theme.bg.includes("gradient") ? theme.bg : theme.bg,
+                      theme.btnBg, theme.accent, theme.text, theme.green
+                    ].map((c,i)=>(
+                      <div key={i} style={{
+                        width:18,height:18,borderRadius:4,
+                        background:c,
+                        border:"1px solid rgba(128,128,128,0.3)",
+                        flexShrink:0,
+                      }}/>
+                    ))}
+                  </div>
+                </div>
+                {active && <span style={{fontSize:18}}>✓</span>}
+              </button>
+            );
+          })}
+        </div>
+        <p style={{fontSize:11,color:T.textDim,marginTop:14,textAlign:"center",letterSpacing:1}}>
+          Los cambios se aplican de inmediato y se recuerdan al volver
+        </p>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main CavaApp ─────────────────────────────────────────────────────────────
 function CavaApp() {
   // auth
-  const [user,       setUser]       = useState(undefined); // undefined = loading
+  const [user,       setUser]       = useState(undefined);
+  const [themeId,    setThemeId]    = useState(T.id);
+  const [showThemes, setShowThemes] = useState(false);
   // cava state (synced from Firestore)
   const [configured, setConfigured] = useState(false);
   const [cavaLoading, setCavaLoading] = useState(false); // true while waiting for first Firestore snapshot
@@ -1133,7 +1287,11 @@ function CavaApp() {
   const importRef    = useRef(null);
   const unsubRef     = useRef(null);
 
-  // ── Auth listener ───────────────────────────────────────────────────────────
+  const handleThemeChange = (id) => {
+    setThemeGlobal(id);   // updates module-level T and localStorage
+    setThemeId(id);        // triggers re-render
+    setShowThemes(false);
+  };
   useEffect(()=>{
     const unsub = fbOnAuth(u => setUser(u || null));
     return () => unsub();
@@ -1457,8 +1615,8 @@ function CavaApp() {
 
   // ── Loading ──────────────────────────────────────────────────────────────────
   if (user === undefined) return (
-    <div style={{minHeight:"100vh",background:"#0a0400",display:"flex",alignItems:"center",
-      justifyContent:"center",color:"#d4a853",fontFamily:FONT,fontSize:28,letterSpacing:4}}>
+    <div style={{minHeight:"100vh",background:T.bg,display:"flex",alignItems:"center",
+      justifyContent:"center",color:T.accent,fontFamily:FONT,fontSize:28,letterSpacing:4}}>
       🍷
     </div>
   );
@@ -1469,12 +1627,12 @@ function CavaApp() {
   // ── Cava loading: waiting for first Firestore snapshot ──────────────────────
   if (cavaLoading) return (
     <div style={{minHeight:"100vh",
-      background:"radial-gradient(ellipse at 30% 20%,#1a0800,#0a0400 60%,#000)",
+      background:T.bgAlt,
       display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
-      fontFamily:FONT,color:"#d4a853",gap:16}}>
+      fontFamily:FONT,color:T.accent,gap:16}}>
       <div style={{fontSize:48,animation:"pulse 1.5s ease-in-out infinite"}}>🍷</div>
-      <div style={{fontSize:13,letterSpacing:3,color:"#7a5030"}}>CARGANDO TU CAVA…</div>
-      <div style={{fontSize:11,color:"#4a2800",marginTop:4}}>Conectando con Firebase…</div>
+      <div style={{fontSize:13,letterSpacing:3,color:T.textSub}}>CARGANDO TU CAVA…</div>
+      <div style={{fontSize:11,color:T.textDim,marginTop:4}}>Conectando con Firebase…</div>
       <button
         onClick={async ()=>{
           // Try a direct one-time read before giving up
@@ -1497,7 +1655,7 @@ function CavaApp() {
           setCavaLoading(false); setConfigured(false);
         }}
         style={{marginTop:20,background:"transparent",border:"1px solid #3a1800",
-          borderRadius:8,padding:"8px 20px",color:"#5a3a20",cursor:"pointer",
+          borderRadius:8,padding:"8px 20px",color:T.textFaint,cursor:"pointer",
           fontSize:12,fontFamily:FONT,letterSpacing:1}}>
         Si esto tarda mucho, toca aquí →
       </button>
@@ -1510,8 +1668,8 @@ function CavaApp() {
   // ── Main view ─────────────────────────────────────────────────────────────────
   return (
     <div style={{minHeight:"100vh",
-      background:"radial-gradient(ellipse at 20% 0%,#1a0800,#080300 70%,#000)",
-      fontFamily:FONT,color:"#e8d5b0",
+      background:T.bg,
+      fontFamily:FONT,color:T.text,
       paddingTop:(layoutEdit||moveMode)?"80px":"22px",paddingLeft:16,paddingRight:16,paddingBottom:48,
       transition:"padding-top 0.2s"}}>
 
@@ -1545,7 +1703,7 @@ function CavaApp() {
           fontFamily:FONT,boxShadow:"0 4px 20px #00000088"}}>
           <div>
             <div style={{fontSize:13,color:"#c8b8f8",fontWeight:600}}>
-              ↕ Moviendo: <span style={{color:"#e8d5b0"}}>{moveMode.bottle.nombre}</span>
+              ↕ Moviendo: <span style={{color:T.text}}>{moveMode.bottle.nombre}</span>
             </div>
             <div style={{fontSize:11,color:"#8070b0",marginTop:2}}>
               Toca la celda destino · Toca la celda origen para cancelar
@@ -1562,10 +1720,10 @@ function CavaApp() {
       {/* Header */}
       <div style={{textAlign:"center",marginBottom:16}}>
         <div style={{display:"flex",justifyContent:"flex-end",marginBottom:6}}>
-          <div style={{fontSize:12,color:"#5a3a20",display:"flex",alignItems:"center",gap:8}}>
-            {syncing&&<span style={{color:"#7ab87a",fontSize:11}}>↑ guardando…</span>}
+          <div style={{fontSize:12,color:T.textFaint,display:"flex",alignItems:"center",gap:8}}>
+            {syncing&&<span style={{color:T.green,fontSize:11}}>↑ guardando…</span>}
             {saveError&&(
-              <span style={{color:"#e05050",fontSize:11,cursor:"pointer",textDecoration:"underline"}}
+              <span style={{color:T.error,fontSize:11,cursor:"pointer",textDecoration:"underline"}}
                 onClick={()=>setSaveError("")}
                 title="Toca para cerrar">
                 ⚠ {saveError}
@@ -1574,18 +1732,18 @@ function CavaApp() {
             <span>👤 {user.displayName||user.email}</span>
             <button onClick={()=>fbSignOut()}
               style={{background:"transparent",border:"1px solid #3a1800",borderRadius:6,
-                padding:"3px 10px",color:"#5a3a20",cursor:"pointer",fontFamily:FONT,fontSize:11}}>
+                padding:"3px 10px",color:T.textFaint,cursor:"pointer",fontFamily:FONT,fontSize:11}}>
               Salir
             </button>
           </div>
         </div>
 
-        <h1 style={{fontSize:30,fontWeight:300,letterSpacing:5,color:"#d4a853",margin:"0 0 3px"}}>MI CAVA</h1>
-        <p style={{fontSize:11,color:"#6a4020",letterSpacing:2,margin:"0 0 4px"}}>
+        <h1 style={{fontSize:30,fontWeight:300,letterSpacing:5,color:T.accent,margin:"0 0 3px"}}>MI CAVA</h1>
+        <p style={{fontSize:11,color:T.textDim,letterSpacing:2,margin:"0 0 4px"}}>
           {totalBotellas} botella{totalBotellas!==1?"s":""} · {ocupadas}/{totalCeldas} celdas · {cols}×{rows}
         </p>
         {totalValor>0&&(
-          <p style={{fontSize:11,color:"#7ab87a",margin:"0 0 12px"}}>
+          <p style={{fontSize:11,color:T.green,margin:"0 0 12px"}}>
             Valor estimado: <strong>${totalValor.toLocaleString("es-CL")}</strong>
           </p>
         )}
@@ -1594,10 +1752,10 @@ function CavaApp() {
         <input ref={importRef} type="file" accept=".json" onChange={handleImport} style={{display:"none"}}/>
         <div style={{display:"flex",gap:7,justifyContent:"center",flexWrap:"wrap"}}>
           {[
-            ["🔍",()=>setShowSearch(true),"#110600","#4a2800","#c8a880"],
-            ["≡",()=>setShowList(true),"#110600","#4a2800","#c8a880"],
-            ["⬇",handleExport,"#0a1a0a","#2a4a2a","#7ab87a"],
-            ["⬆",()=>importRef.current?.click(),"#0a1a0a","#2a4a2a","#7ab87a"],
+            ["🔍",()=>setShowSearch(true),"#110600",T.borderDim,"#c8a880"],
+            ["≡",()=>setShowList(true),"#110600",T.borderDim,"#c8a880"],
+            ["⬇",handleExport,"#0a1a0a","#2a4a2a",T.green],
+            ["⬆",()=>importRef.current?.click(),"#0a1a0a","#2a4a2a",T.green],
           ].map(([lbl,fn,bg,br,col])=>(
             <button key={lbl} onClick={fn}
               style={{background:bg,border:`1px solid ${br}`,borderRadius:8,
@@ -1605,10 +1763,17 @@ function CavaApp() {
               {lbl}
             </button>
           ))}
+          <button onClick={()=>setShowThemes(true)}
+            style={{background:"transparent",border:`1px solid ${T.borderFaint}`,
+              borderRadius:8,padding:"7px 13px",color:T.textDim,
+              cursor:"pointer",fontSize:13,fontFamily:FONT}}
+            title="Cambiar paleta de colores">
+            🎨
+          </button>
           <button onClick={()=>{ setLayoutEdit(v=>!v); setMoveMode(null); }}
             style={{background:layoutEdit?"#1a0060":"transparent",
-              border:`1px solid ${layoutEdit?"#8060ff":"#3a1800"}`,borderRadius:8,
-              padding:"7px 13px",color:layoutEdit?"#c0a0ff":"#5a3a20",
+              border:`1px solid ${layoutEdit?"#8060ff":T.borderFaint}`,borderRadius:8,
+              padding:"7px 13px",color:layoutEdit?"#c0a0ff":T.textFaint,
               cursor:"pointer",fontSize:13,fontFamily:FONT}}>
             {layoutEdit?"✓ Editando forma":"⬡ Forma"}
           </button>
@@ -1622,7 +1787,7 @@ function CavaApp() {
             }
           }}
             style={{background:"transparent",border:"1px solid #3a1800",borderRadius:8,
-              padding:"7px 13px",color:"#5a3a20",cursor:"pointer",fontSize:15,fontFamily:FONT}}>
+              padding:"7px 13px",color:T.textFaint,cursor:"pointer",fontSize:15,fontFamily:FONT}}>
             ⚙
           </button>
         </div>
@@ -1646,7 +1811,7 @@ function CavaApp() {
           display:"grid",
           gridTemplateColumns:`repeat(${cols},minmax(32px,46px))`,
           gap:shape==="honeycomb"?3:4,
-          padding:"14px 18px",background:"#0e050088",
+          padding:"14px 18px",background:T.gridBg,
           border:"1px solid #2a1200",borderRadius:14,
           boxShadow:"inset 0 2px 20px #00000066"}}>
           {grid.map((row,r)=>row.map((cell,c)=>{
@@ -1688,7 +1853,7 @@ function CavaApp() {
             else if(isHl)              cellBorder="2px solid #FFD700";
             else if(venc)              cellBorder="1px solid #e0505099";
             else if(moveMode&&!isDisabled) cellBorder=`1px dashed ${isHov?"#a080ff":"#5040a0"}`;
-            else if(isEmpty)           cellBorder=`1px dashed ${isHov?"#6b3a1f":"#2a1200"}`;
+            else if(isEmpty)           cellBorder=`1px dashed ${isHov?T.border:T.gridBorder}`;
             else                       cellBorder=`1px solid ${bgC}88`;
 
             return (
@@ -1715,7 +1880,7 @@ function CavaApp() {
                     ?(isDisabled?"#08020a":cantToggle?`linear-gradient(160deg,${bgC}cc,${bgC}77)`:(isHov?"#1a0840":"#110030"))
                     :isDisabled?"transparent"
                     :isDragOver?"#1a2a40":isSource?"#2a1060":isDragSrc?"#1a2060"
-                    :isEmpty?(isHov&&(moveMode||dragSource)?"#1a1040":isHov?"#2a1200":"#160800")
+                    :isEmpty?(isHov&&(moveMode||dragSource)?"#1a1040":isHov?T.gridBorder:T.cellEmpty)
                     :`linear-gradient(160deg,${bgC}cc,${bgC}77)`,
                   border:cellBorder,
                   cursor:layoutEdit?(isDisabled||isEmpty?"pointer":"not-allowed")
@@ -1736,7 +1901,7 @@ function CavaApp() {
                   <span style={{fontSize:12,color:"#8060d0",userSelect:"none"}}>+</span>
                 )}
                 {layoutEdit&&!isDisabled&&isEmpty&&(
-                  <span style={{fontSize:9,color:isHov?"#e05050":"#4a2080",userSelect:"none"}}>
+                  <span style={{fontSize:9,color:isHov?T.error:"#4a2080",userSelect:"none"}}>
                     {isHov?"✕":"○"}
                   </span>
                 )}
@@ -1751,13 +1916,13 @@ function CavaApp() {
                     </span>
                     {count>1&&<span style={{fontSize:8,color:"#fff",background:"#00000066",
                       borderRadius:6,padding:"1px 3px",marginTop:1,fontFamily:"monospace"}}>×{count}</span>}
-                    {venc&&<span style={{fontSize:7,color:"#e05050",marginTop:1}}>⚠</span>}
+                    {venc&&<span style={{fontSize:7,color:T.error,marginTop:1}}>⚠</span>}
                     {isSource&&<span style={{fontSize:7,color:"#c0a0ff",marginTop:1}}>↕</span>}
                   </>
                 )}
                 {!layoutEdit&&!isDisabled&&isEmpty&&(isHov||isDragOver)&&(
                   <span style={{fontSize:isDragOver?14:13,
-                    color:isDragOver?"#60d0ff":"#6b3a1f",userSelect:"none"}}>
+                    color:isDragOver?"#60d0ff":T.border,userSelect:"none"}}>
                     {isDragOver?"⤵":"+"}
                   </span>
                 )}
@@ -1769,13 +1934,21 @@ function CavaApp() {
 
       {/* Legend */}
       <div style={{textAlign:"center",marginBottom:8}}>
-        <div style={{display:"flex",gap:10,justifyContent:"center",flexWrap:"wrap",fontSize:10,color:"#5a3a20"}}>
+        <div style={{display:"flex",gap:10,justifyContent:"center",flexWrap:"wrap",fontSize:10,color:T.textFaint}}>
           {WINE_TYPES.map(t=><span key={t.id}>{t.emoji} {t.label}</span>)}
           <span>· ×N = múltiples · ⚠ = guarda vencida · ↕ = en movimiento</span>
         </div>
       </div>
 
       {/* Modals */}
+      {showThemes&&(
+        <ThemePicker
+          currentId={themeId}
+          onPick={handleThemeChange}
+          onClose={()=>setShowThemes(false)}
+        />
+      )}
+
       {showAddForm&&(
         <WineForm onSave={handleAddWine} onClose={()=>{setShowAddForm(false);setPendingCell(null);}}/>
       )}
