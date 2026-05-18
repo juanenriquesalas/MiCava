@@ -891,7 +891,7 @@ function ListView({ grid, onRemoveBottle, onHighlight, onEditBottle, onClose }) 
   const totalValor = allBottles.reduce((s,{w})=>(s+(Number(w.precio)||0)*(Number(w.cantidad)||1)),0);
 
   return (
-    <div style={{...modalWrap,alignItems:"flex-start",paddingTop:20}}>
+    <div style={{...modalWrap(),alignItems:"flex-start",paddingTop:20,overflowY:"auto",zIndex:300}}>
       <div style={{...modalBox(),width:"min(620px,96vw)",margin:"20px auto"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
           <div>
@@ -1751,16 +1751,16 @@ function CavaApp() {
 
         <input ref={importRef} type="file" accept=".json" onChange={handleImport} style={{display:"none"}}/>
         <div style={{display:"flex",gap:7,justifyContent:"center",flexWrap:"wrap"}}>
-          {[
-            ["🔍", ()=>setShowSearch(true)],
-            ["≡",  ()=>setShowList(true)],
-          ].map(([lbl,fn])=>(
-            <button key={lbl} onClick={fn}
-              style={{background:T.surfaceS,border:`1px solid ${T.borderDim}`,borderRadius:8,
-                padding:"7px 13px",color:T.textSub,cursor:"pointer",fontSize:15,fontFamily:FONT}}>
-              {lbl}
-            </button>
-          ))}
+          <button key="🔍" onClick={()=>{ window.scrollTo({top:0,behavior:"smooth"}); setShowSearch(true); }}
+            style={{background:T.surfaceS,border:`1px solid ${T.borderDim}`,borderRadius:8,
+              padding:"7px 13px",color:T.textSub,cursor:"pointer",fontSize:15,fontFamily:FONT}}>
+            🔍
+          </button>
+          <button key="≡" onClick={()=>{ window.scrollTo({top:0,behavior:"smooth"}); setShowList(true); }}
+            style={{background:T.surfaceS,border:`1px solid ${T.borderDim}`,borderRadius:8,
+              padding:"7px 13px",color:T.textSub,cursor:"pointer",fontSize:15,fontFamily:FONT}}>
+            ≡
+          </button>
           {[
             ["⬇", handleExport],
             ["⬆", ()=>importRef.current?.click()],
