@@ -62,6 +62,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
 
   <!-- Firebase init — expone FB como objeto global directo, sin bridge complejo -->
   <script>
@@ -78,6 +79,7 @@
     // Expose direct references
     window.FB_AUTH = firebase.auth();
     window.FB_DB   = firebase.firestore();
+    window.FB_STORAGE = firebase.storage();
     console.log("Firebase initialized:", _fbConfig.projectId);
   </script>
 
@@ -120,6 +122,38 @@ const fbListen = (uid, onNext, onErr) => {
   if (!ref) { onErr(new Error("FB_DB not initialized")); return ()=>{}; }
   return ref.onSnapshot(onNext, onErr);
 };
+
+// ─── Fotos de etiquetas (Sugerencia 3) ─────────────────────────────────────────
+// Sube una imagen a Firebase Storage y devuelve la URL pública.
+async function uploadWinePhoto(uid, file) {
+  if (!window.FB_STORAGE) throw new Error("Storage no inicializado");
+  // Reducir tamaño antes de subir (evita fotos pesadas de celular)
+  const resized = await resizeImage(file, 800);
+  const path = `wine-photos/${uid}/${Date.now()}_${Math.random().toString(36).slice(2,8)}.jpg`;
+  const ref = window.FB_STORAGE.ref(path);
+  await ref.put(resized, { contentType: "image/jpeg" });
+  return await ref.getDownloadURL();
+}
+
+function resizeImage(file, maxDim) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const reader = new FileReader();
+    reader.onload = e => { img.src = e.target.result; };
+    reader.onerror = reject;
+    img.onload = () => {
+      let { width, height } = img;
+      if (width > height && width > maxDim) { height *= maxDim/width; width = maxDim; }
+      else if (height > maxDim) { width *= maxDim/height; height = maxDim; }
+      const canvas = document.createElement("canvas");
+      canvas.width = width; canvas.height = height;
+      canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+      canvas.toBlob(blob => resolve(blob), "image/jpeg", 0.82);
+    };
+    img.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
 
 // ─── constants ────────────────────────────────────────────────────────────────
 const WINE_TYPES = [
@@ -175,6 +209,39 @@ function toggleDisabled(grid, r, c) {
   next[r][c] = next[r][c] === "__disabled__" ? [] : "__disabled__";
   return next;
 }
+
+// ─── Ventana de consumo óptimo (Sugerencia 1) ─────────────────────────────────
+// Estima si un vino está joven, en su punto, o pasado, según tipo + añada + guarda.
+function getDrinkingStatus(w) {
+  const now = new Date();
+  if (w.guardaHasta) {
+    const g = new Date(w.guardaHasta);
+    if (g < now) return { level:"vencido", label:"⚠️ Vencida", color:"#e05050" };
+    const monthsLeft = (g - now) / (1000*60*60*24*30);
+    if (monthsLeft < 6) return { level:"proximo", label:"🕐 Consumir pronto", color:"#e0a030" };
+  }
+  if (w.añada) {
+    const year = parseInt(w.añada);
+    if (!isNaN(year)) {
+      const age = new Date().getFullYear() - year;
+      // Ventanas orientativas por tipo (años desde cosecha)
+      const windows = {
+        tinto:      { young:2,  peakEnd:8  },
+        blanco:     { young:1,  peakEnd:4  },
+        rose:       { young:0,  peakEnd:2  },
+        espumante:  { young:0,  peakEnd:5  },
+        dulce:      { young:2,  peakEnd:15 },
+      };
+      const win = windows[w.tipo] || windows.tinto;
+      if (age < win.young) return { level:"joven", label:"🌱 Joven — aún puede guardar", color:"#6ab87a" };
+      if (age <= win.peakEnd) return { level:"punto", label:"✨ En su punto", color:"#d4a853" };
+      return { level:"maduro", label:"🍂 Maduro — considera abrirlo", color:"#e0a030" };
+    }
+  }
+  return null; // sin datos suficientes
+}
+
+
 
 const today = () => new Date().toISOString().slice(0,10);
 
@@ -559,10 +626,10 @@ function AuthScreen({ onAuth }) {
 const EMPTY_FORM = {
   nombre:"", bodega:"", añada:"", tipo:"tinto", pais:"",
   cepas:[], cepaCustom:"", maridajes:[], notas:"", estrellas:0,
-  fechaCompra:today(), guardaHasta:"", cantidad:1, tags:[], precio:"",
+  fechaCompra:today(), guardaHasta:"", cantidad:1, tags:[], precio:"", foto:"",
 };
 
-function WineForm({ onSave, onClose, initial=null }) {
+function WineForm({ onSave, onClose, initial=null, uid=null }) {
   const isEdit = !!initial;
   const [form, setForm] = useState(()=>{
     if (!initial) return {...EMPTY_FORM, fechaCompra:today()};
@@ -579,9 +646,25 @@ function WineForm({ onSave, onClose, initial=null }) {
       cepaCustom: initial.cepaCustom || "",
     };
   });
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [photoError, setPhotoError] = useState("");
   const set = (k,v) => setForm(f=>({...f,[k]:v}));
   const valid = form.nombre.trim().length > 0;
   const cepas = CEPAS_POR_TIPO[form.tipo] || [];
+
+  const handlePhotoChange = async (e) => {
+    const file = e.target.files[0];
+    if (!file || !uid) return;
+    setUploadingPhoto(true); setPhotoError("");
+    try {
+      const url = await uploadWinePhoto(uid, file);
+      set("foto", url);
+    } catch(err) {
+      console.error("Photo upload error:", err);
+      setPhotoError("No se pudo subir la foto. Intenta de nuevo.");
+    } finally { setUploadingPhoto(false); }
+    e.target.value = "";
+  };
 
   const handleSave = () => {
     if (!valid) return;
@@ -608,6 +691,35 @@ function WineForm({ onSave, onClose, initial=null }) {
               <input value={form[k]} onChange={e=>set(k,e.target.value)} style={iS()}/>
             </div>
           ))}
+        </div>
+
+        {/* foto de etiqueta */}
+        <div style={{marginBottom:14}}>
+          <label style={lS()}>Foto de la etiqueta</label>
+          <div style={{display:"flex",gap:10,alignItems:"center"}}>
+            {form.foto && (
+              <img src={form.foto} alt="Etiqueta"
+                style={{width:56,height:56,objectFit:"cover",borderRadius:8,
+                  border:`1px solid ${T.borderDim}`}}/>
+            )}
+            <label style={{...btnGhost(),padding:"9px 16px",fontSize:13,
+              cursor:uploadingPhoto?"wait":"pointer",opacity:uploadingPhoto?0.6:1,
+              display:"inline-flex",alignItems:"center",gap:6}}>
+              📷 {uploadingPhoto ? "Subiendo…" : form.foto ? "Cambiar foto" : "Agregar foto"}
+              <input type="file" accept="image/*" capture="environment"
+                onChange={handlePhotoChange} disabled={uploadingPhoto || !uid}
+                style={{display:"none"}}/>
+            </label>
+            {form.foto && !uploadingPhoto && (
+              <button onClick={()=>set("foto","")}
+                style={{background:"transparent",border:"none",color:T.error,
+                  cursor:"pointer",fontSize:12,fontFamily:FONT}}>
+                Quitar
+              </button>
+            )}
+          </div>
+          {photoError && <div style={{fontSize:11,color:T.error,marginTop:6}}>{photoError}</div>}
+          {!uid && <div style={{fontSize:11,color:T.textFaint,marginTop:6}}>Inicia sesión para subir fotos.</div>}
         </div>
 
         {/* tipo */}
@@ -739,13 +851,20 @@ function WineCard({ w, onRetire, onEdit, compact=false }) {
   const guard = w.guardaHasta ? new Date(w.guardaHasta) : null;
   const vencida = guard && guard < now;
   const proxima = guard && !vencida && (guard-now)<1000*60*60*24*180;
+  const drinkStatus = getDrinkingStatus(w);
 
   return (
     <div style={{background:tipo.color+"18",border:`1px solid ${tipo.color}${vencida?"99":"44"}`,
       borderRadius:10,padding:compact?"10px 14px":"14px 16px",marginBottom:10,
       boxShadow:vencida?"0 0 8px "+tipo.color+"44":"none"}}>
       <div style={{display:"flex",gap:10,alignItems:"flex-start"}}>
-        <span style={{fontSize:compact?22:28}}>{tipo.emoji}</span>
+        {w.foto ? (
+          <img src={w.foto} alt={w.nombre}
+            style={{width:compact?40:52,height:compact?40:52,objectFit:"cover",
+              borderRadius:8,border:`1px solid ${T.borderDim}`,flexShrink:0}}/>
+        ) : (
+          <span style={{fontSize:compact?22:28}}>{tipo.emoji}</span>
+        )}
         <div style={{flex:1,minWidth:0}}>
           <div style={{fontWeight:600,fontSize:compact?15:17,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{w.nombre}</div>
           {w.bodega&&<div style={{fontSize:13,color:T.accent}}>{w.bodega}</div>}
@@ -763,6 +882,13 @@ function WineCard({ w, onRetire, onEdit, compact=false }) {
               </span>
             )}
           </div>
+          {drinkStatus&&!vencida&&(
+            <div style={{marginTop:4}}>
+              <span style={{fontSize:11,color:drinkStatus.color,fontWeight:500}}>
+                {drinkStatus.label}
+              </span>
+            </div>
+          )}
           {w.maridajes&&w.maridajes.length>0&&(
             <div style={{display:"flex",gap:4,flexWrap:"wrap",marginTop:4}}>
               {w.maridajes.map(id=>{const m=MARIDAJES.find(x=>x.id===id);return m?<span key={id} title={m.label} style={{fontSize:15}}>{m.emoji}</span>:null;})}
@@ -958,6 +1084,202 @@ function ListView({ grid, onRemoveBottle, onHighlight, onEditBottle, onClose }) 
   );
 }
 
+// ─── PairingFinder — "Voy a cocinar X" (Sugerencia 2) ─────────────────────────
+function PairingFinder({ grid, onHighlight, onEditBottle, onClose }) {
+  const [selectedPairing, setSelectedPairing] = useState(null);
+
+  const allBottles = [];
+  grid.forEach((row,r)=>row.forEach((cell,c)=>{
+    if(!Array.isArray(cell)) return;
+    cell.forEach((w,idx)=>allBottles.push({w,r,c,idx}));
+  }));
+
+  const results = selectedPairing
+    ? allBottles
+        .filter(({w}) => (w.maridajes||[]).includes(selectedPairing))
+        .sort((a,b) => (b.w.estrellas||0)-(a.w.estrellas||0))
+    : [];
+
+  return (
+    <div style={{...modalWrap(),alignItems:"flex-start",paddingTop:20,overflowY:"auto",zIndex:300}}>
+      <div style={{...modalBox(),width:"min(520px,96vw)",margin:"20px auto"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
+          <h2 style={{margin:0,fontSize:18,color:T.accent,letterSpacing:1,fontWeight:500}}>
+            🍽️ ¿Qué vas a cocinar?
+          </h2>
+          <button onClick={onClose} style={{background:"transparent",border:"none",color:T.textDim,fontSize:22,cursor:"pointer"}}>✕</button>
+        </div>
+
+        <p style={{fontSize:12,color:T.textSub,marginBottom:14}}>
+          Elige el tipo de comida y te mostramos qué vinos de tu cava maridan mejor.
+        </p>
+
+        <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:20}}>
+          {MARIDAJES.map(m=>(
+            <button key={m.id} onClick={()=>setSelectedPairing(m.id===selectedPairing?null:m.id)}
+              style={pill("#2a6a4a",m.id===selectedPairing)}>
+              {m.emoji} {m.label}
+            </button>
+          ))}
+        </div>
+
+        {selectedPairing && (
+          <>
+            <div style={{fontSize:12,color:T.textDim,marginBottom:10,letterSpacing:1}}>
+              {results.length} vino{results.length!==1?"s":""} compatible{results.length!==1?"s":""}
+              {results.length>0 && " · ordenados por puntaje"}
+            </div>
+            {results.length===0 && (
+              <p style={{color:T.textFaint,fontSize:13,textAlign:"center",padding:"20px 0"}}>
+                No hay vinos con este maridaje registrado en tu cava todavía.
+              </p>
+            )}
+            <div style={{maxHeight:"48vh",overflowY:"auto",paddingRight:4}}>
+              {results.map(({w,r,c,idx},i)=>(
+                <div key={i}>
+                  <div style={{fontSize:10,color:T.textFaint,marginBottom:2,letterSpacing:1}}>
+                    FILA {r+1} · COL {c+1}
+                    <span onClick={()=>{onHighlight(r,c);onClose();}}
+                      style={{color:T.textDim,cursor:"pointer",marginLeft:8,textDecoration:"underline"}}>
+                      Ver en cava
+                    </span>
+                  </div>
+                  <WineCard w={w} compact onEdit={()=>{ onEditBottle(w,[r,c],idx); onClose(); }}/>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── StatsView — Dashboard de estadísticas (Sugerencia 4) ─────────────────────
+function StatsView({ grid, onClose }) {
+  const allBottles = grid.flat().filter(Array.isArray).flat();
+  const total = allBottles.length;
+
+  const byType = WINE_TYPES.map(t=>({
+    ...t, count: allBottles.filter(w=>w.tipo===t.id).length
+  })).filter(t=>t.count>0).sort((a,b)=>b.count-a.count);
+
+  const byRegion = {};
+  allBottles.forEach(w=>{
+    const region = (w.pais||"Sin especificar").split(",")[0].trim() || "Sin especificar";
+    byRegion[region] = (byRegion[region]||0) + 1;
+  });
+  const topRegions = Object.entries(byRegion).sort((a,b)=>b[1]-a[1]).slice(0,6);
+
+  const priced = allBottles.filter(w=>Number(w.precio)>0);
+  const totalValue = priced.reduce((s,w)=>s+Number(w.precio)*(Number(w.cantidad)||1),0);
+  const avgPrice = priced.length ? totalValue/priced.reduce((s,w)=>s+(Number(w.cantidad)||1),0) : 0;
+
+  const priceRanges = [
+    { label:"< $10.000",        min:0,     max:10000 },
+    { label:"$10.000–30.000",   min:10000, max:30000 },
+    { label:"$30.000–60.000",   min:30000, max:60000 },
+    { label:"> $60.000",        min:60000, max:Infinity },
+  ].map(r => ({
+    ...r, count: priced.filter(w=>Number(w.precio)>=r.min && Number(w.precio)<r.max).length
+  })).filter(r=>r.count>0);
+
+  const rated = allBottles.filter(w=>w.estrellas>0);
+  const avgRating = rated.length ? rated.reduce((s,w)=>s+w.estrellas,0)/rated.length : 0;
+
+  const byYear = {};
+  allBottles.forEach(w=>{
+    if (w.fechaCompra) {
+      const y = w.fechaCompra.slice(0,4);
+      byYear[y] = (byYear[y]||0) + 1;
+    }
+  });
+  const purchaseYears = Object.entries(byYear).sort((a,b)=>a[0].localeCompare(b[0]));
+
+  const maxTypeCount = Math.max(1, ...byType.map(t=>t.count));
+  const maxRegionCount = Math.max(1, ...topRegions.map(([,c])=>c));
+  const maxYearCount = Math.max(1, ...purchaseYears.map(([,c])=>c));
+
+  const Bar = ({ label, count, max, color, emoji }) => (
+    <div style={{marginBottom:10}}>
+      <div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:3,color:T.text}}>
+        <span>{emoji?`${emoji} `:""}{label}</span>
+        <span style={{color:T.textDim}}>{count}</span>
+      </div>
+      <div style={{height:8,background:T.gridBorder,borderRadius:4,overflow:"hidden"}}>
+        <div style={{width:`${(count/max)*100}%`,height:"100%",background:color,borderRadius:4,transition:"width 0.3s"}}/>
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{...modalWrap(),alignItems:"flex-start",paddingTop:20,overflowY:"auto",zIndex:300}}>
+      <div style={{...modalBox(),width:"min(560px,96vw)",margin:"20px auto"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
+          <h2 style={{margin:0,fontSize:18,color:T.accent,letterSpacing:1,fontWeight:500}}>
+            📊 Estadísticas de tu cava
+          </h2>
+          <button onClick={onClose} style={{background:"transparent",border:"none",color:T.textDim,fontSize:22,cursor:"pointer"}}>✕</button>
+        </div>
+
+        {total===0 ? (
+          <p style={{color:T.textFaint,fontSize:13,textAlign:"center",padding:"30px 0"}}>
+            Agrega vinos a tu cava para ver estadísticas.
+          </p>
+        ) : (
+          <div style={{maxHeight:"70vh",overflowY:"auto",paddingRight:4}}>
+
+            {/* Resumen rápido */}
+            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:22}}>
+              {[
+                ["Botellas", total],
+                ["Valor total", totalValue>0?`$${Math.round(totalValue).toLocaleString("es-CL")}`:"—"],
+                ["Puntaje prom.", avgRating>0?`★ ${avgRating.toFixed(1)}`:"—"],
+              ].map(([lbl,val])=>(
+                <div key={lbl} style={{background:T.isDark?"#00000022":"#00000008",
+                  border:`1px solid ${T.borderFaint}`,borderRadius:10,padding:"12px 8px",textAlign:"center"}}>
+                  <div style={{fontSize:18,color:T.accent,fontWeight:600}}>{val}</div>
+                  <div style={{fontSize:10,color:T.textDim,letterSpacing:1,marginTop:2}}>{lbl.toUpperCase()}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Por tipo */}
+            <h3 style={{fontSize:13,color:T.textSub,letterSpacing:1,marginBottom:10}}>POR TIPO</h3>
+            {byType.map(t=>(
+              <Bar key={t.id} label={t.label} count={t.count} max={maxTypeCount} color={t.color} emoji={t.emoji}/>
+            ))}
+
+            {/* Por región */}
+            {topRegions.length>0 && (<>
+              <h3 style={{fontSize:13,color:T.textSub,letterSpacing:1,margin:"18px 0 10px"}}>POR REGIÓN / PAÍS</h3>
+              {topRegions.map(([region,count])=>(
+                <Bar key={region} label={region} count={count} max={maxRegionCount} color={T.accent}/>
+              ))}
+            </>)}
+
+            {/* Por rango de precio */}
+            {priceRanges.length>0 && (<>
+              <h3 style={{fontSize:13,color:T.textSub,letterSpacing:1,margin:"18px 0 10px"}}>POR RANGO DE PRECIO</h3>
+              {priceRanges.map(r=>(
+                <Bar key={r.label} label={r.label} count={r.count} max={Math.max(1,...priceRanges.map(x=>x.count))} color={T.green}/>
+              ))}
+            </>)}
+
+            {/* Compras en el tiempo */}
+            {purchaseYears.length>1 && (<>
+              <h3 style={{fontSize:13,color:T.textSub,letterSpacing:1,margin:"18px 0 10px"}}>COMPRAS POR AÑO</h3>
+              {purchaseYears.map(([year,count])=>(
+                <Bar key={year} label={year} count={count} max={maxYearCount} color="#8060d0"/>
+              ))}
+            </>)}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── SearchPanel ──────────────────────────────────────────────────────────────
 function SearchPanel({ grid, onHighlight, onEditBottle, onClose }) {
   const [q, setQ] = useState("");
@@ -1046,6 +1368,26 @@ function SetupScreen({ onConfirm }) {
   const cellSize = Math.min(44, Math.floor(320 / cols));
   const isHoneycomb = shape === "honeycomb";
 
+  // ── Plantillas predefinidas (Sugerencia 5) ────────────────────────────────
+  const applyTemplate = (name) => {
+    const g = buildGrid(cols, rows);
+    if (name === "L") {
+      const hr = Math.floor(rows/2), hc = Math.floor(cols/2);
+      for (let r=hr; r<rows; r++) for (let c=hc; c<cols; c++) g[r][c] = "__disabled__";
+    } else if (name === "U") {
+      const ms = Math.floor(cols/4), me = cols-ms, tr = Math.floor(rows/3);
+      for (let r=0; r<tr; r++) for (let c=ms; c<me; c++) g[r][c] = "__disabled__";
+    }
+    // "rect" deja todo activo (no-op, ya es el estado por defecto)
+    setPreview(g);
+  };
+
+  const TEMPLATES = [
+    { id:"rect", label:"Rectangular simple", icon:"▬" },
+    { id:"L",    label:"En L",               icon:"⌐" },
+    { id:"U",    label:"En U",               icon:"∪" },
+  ];
+
   return (
     <div style={{minHeight:"100vh",
       background:T.bgAlt,
@@ -1103,10 +1445,23 @@ function SetupScreen({ onConfirm }) {
           </>)}
 
           {step===2 && (<>
-            <p style={{fontSize:12,color:T.textSub,marginBottom:14,lineHeight:1.6}}>
-              Toca las celdas para <strong style={{color:T.error}}>bloquearlas</strong> (oscuro = sin botella).
-              Usa esto para dar la forma exacta a tu cava.
+            <p style={{fontSize:12,color:T.textSub,marginBottom:10,lineHeight:1.6}}>
+              Empieza con una plantilla o toca las celdas para <strong style={{color:T.error}}>bloquearlas</strong> (oscuro = sin botella).
             </p>
+
+            {/* Plantillas predefinidas */}
+            <div style={{display:"flex",gap:8,marginBottom:16}}>
+              {TEMPLATES.map(t=>(
+                <button key={t.id} onClick={()=>applyTemplate(t.id)}
+                  style={{flex:1,background:T.isDark?"#00000022":"#00000008",
+                    border:`1px solid ${T.borderDim}`,borderRadius:10,
+                    padding:"10px 6px",color:T.text,cursor:"pointer",
+                    fontFamily:FONT,textAlign:"center"}}>
+                  <div style={{fontSize:18,marginBottom:3}}>{t.icon}</div>
+                  <div style={{fontSize:10,color:T.textSub}}>{t.label}</div>
+                </button>
+              ))}
+            </div>
 
             {/* Interactive grid preview */}
             <div style={{overflowX:"auto",marginBottom:12}}>
@@ -1276,6 +1631,8 @@ function CavaApp() {
   const [detailCell,   setDetailCell]   = useState(null);
   const [showSearch,   setShowSearch]   = useState(false);
   const [showList,     setShowList]     = useState(false);
+  const [showPairing,  setShowPairing]  = useState(false);
+  const [showStats,    setShowStats]    = useState(false);
   const [highlighted,  setHighlighted]  = useState(null);
   const [hoveredCell,  setHoveredCell]  = useState(null);
   const [moveMode,     setMoveMode]     = useState(null);
@@ -1761,6 +2118,18 @@ function CavaApp() {
               padding:"7px 13px",color:T.textSub,cursor:"pointer",fontSize:15,fontFamily:FONT}}>
             ≡
           </button>
+          <button key="🍽️" onClick={()=>{ window.scrollTo({top:0,behavior:"smooth"}); setShowPairing(true); }}
+            style={{background:T.surfaceS,border:`1px solid ${T.borderDim}`,borderRadius:8,
+              padding:"7px 13px",color:T.textSub,cursor:"pointer",fontSize:15,fontFamily:FONT}}
+            title="Buscar por maridaje">
+            🍽️
+          </button>
+          <button key="📊" onClick={()=>{ window.scrollTo({top:0,behavior:"smooth"}); setShowStats(true); }}
+            style={{background:T.surfaceS,border:`1px solid ${T.borderDim}`,borderRadius:8,
+              padding:"7px 13px",color:T.textSub,cursor:"pointer",fontSize:15,fontFamily:FONT}}
+            title="Estadísticas">
+            📊
+          </button>
           {[
             ["⬇", handleExport],
             ["⬆", ()=>importRef.current?.click()],
@@ -1959,7 +2328,7 @@ function CavaApp() {
       )}
 
       {showAddForm&&(
-        <WineForm onSave={handleAddWine} onClose={()=>{setShowAddForm(false);setPendingCell(null);}}/>
+        <WineForm onSave={handleAddWine} onClose={()=>{setShowAddForm(false);setPendingCell(null);}} uid={user?.uid}/>
       )}
 
       {editTarget&&(
@@ -1967,6 +2336,7 @@ function CavaApp() {
           initial={editTarget.bottle}
           onSave={handleEditWine}
           onClose={()=>setEditTarget(null)}
+          uid={user?.uid}
         />
       )}
 
@@ -1998,6 +2368,22 @@ function CavaApp() {
           onHighlight={(r,c)=>setHighlighted([r,c])}
           onEditBottle={(bottle,cellIndex,bottleIdx)=>setEditTarget({bottle,cellIndex,bottleIdx})}
           onClose={()=>setShowList(false)}
+        />
+      )}
+
+      {showPairing&&(
+        <PairingFinder
+          grid={grid}
+          onHighlight={(r,c)=>setHighlighted([r,c])}
+          onEditBottle={(bottle,cellIndex,bottleIdx)=>setEditTarget({bottle,cellIndex,bottleIdx})}
+          onClose={()=>setShowPairing(false)}
+        />
+      )}
+
+      {showStats&&(
+        <StatsView
+          grid={grid}
+          onClose={()=>setShowStats(false)}
         />
       )}
     </div>
